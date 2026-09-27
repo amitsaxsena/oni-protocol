@@ -1,9 +1,9 @@
 // ═══════════════════ ONI PROTOCOL — main game ═══════════════════
 import * as THREE from 'three';
 import { World } from './world.js?v=9';
-import { Player } from './player.js?v=9';
-import { WeaponSystem, WEAPONS, animateViewmodel } from './weapons.js?v=9';
-import { BotManager } from './bots.js?v=9';
+import { Player } from './player.js?v=10';
+import { WeaponSystem, WEAPONS, animateViewmodel } from './weapons.js?v=10';
+import { BotManager } from './bots.js?v=10';
 import { FXSystem } from './effects.js?v=9';
 import { initAudio, toggleAudio, startAmbient, sfx } from './audio.js?v=9';
 import { buildChineseArt } from './wallart.js?v=9';
@@ -92,6 +92,7 @@ const hud = {
   waveLine: $('wave-line'), waveEnemies: $('wave-enemies'),
   score: $('score-num'), killfeed: $('killfeed'),
   crosshair: $('crosshair'), hitmarker: $('hitmarker'), combo: $('combo'),
+  scopeOverlay: $('scope-overlay'),
   banner: $('banner'), bannerMain: $('banner-main'), bannerSub: $('banner-sub'),
   vDmg: $('vignette-damage'), vDash: $('vignette-dash'), vHeal: $('vignette-heal'),
   damageLayer: $('damage-layer'),
@@ -614,6 +615,7 @@ function loop() {
     updateDashUI();
     updateDmgNums(dt);
   } else {
+    hud.scopeOverlay.classList.remove('show');
     // menu idle camera drift
     if (state === 'menu') {
       camera.position.set(Math.sin(t * 0.1) * 20, 8, Math.cos(t * 0.1) * 20 + 10);
@@ -623,9 +625,12 @@ function loop() {
 
   fx.update(dt);
 
-  // viewmodel + fov
+  // viewmodel + fov + scope
   if (state === 'playing') {
-    weapons.vm.visible = !player.thirdPerson;   // TPP me viewmodel chhupo
+    const scoped = !player.thirdPerson && weapons.aiming && weapons.current === 'rifle' && !weapons.reloading;
+    hud.scopeOverlay.classList.toggle('show', scoped);
+    hud.crosshair.classList.toggle('scoped', scoped);
+    weapons.vm.visible = !player.thirdPerson && !scoped;   // scope/TPP me viewmodel chhupo
     animateViewmodel(weapons, player, dt, isMoving(), 0, nS);
     // shotgun shell insert sounds mid-reload
     if (weapons.reloading && weapons.current === 'shotgun') {
@@ -635,8 +640,9 @@ function loop() {
     } else {
       weapons._lastShellP = 0;
     }
-    const targetFov = weapons.aiming && weapons.current !== 'katana' ? 55
-      : (player.dashTime > 0 ? 84 : (player.sprinting ? 83 : 75));
+    const targetFov = scoped ? 38
+      : (weapons.aiming && weapons.current !== 'katana' ? 55
+        : (player.dashTime > 0 ? 84 : (player.sprinting ? 83 : 75)));
     baseFov += (targetFov - baseFov) * Math.min(1, dt * 10);
     camera.fov = baseFov;
     camera.updateProjectionMatrix();

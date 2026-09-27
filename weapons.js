@@ -132,9 +132,30 @@ export class WeaponSystem {
     const chandle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.02, 0.03), steel);
     chandle.position.set(0.05, 0.04, -0.05); rifle.add(chandle);
     this.rifleCharging = chandle;
-    // iron sights rear
-    const rSight = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.025, 0.02), gunmetal);
-    rSight.position.set(0, 0.088, -0.02); rifle.add(rSight);
+    // 4x tactical scope (replaces rear iron sight)
+    const scopeTube = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.034, 0.17, 14), black);
+    scopeTube.rotation.x = Math.PI / 2;
+    scopeTube.position.set(0, 0.115, -0.1);
+    rifle.add(scopeTube);
+    const ocular = new THREE.Mesh(new THREE.CircleGeometry(0.026, 14),
+      new THREE.MeshBasicMaterial({ color: 0x0c1a14 }));
+    ocular.position.set(0, 0.115, -0.014);   // rear lens — shooter ki taraf
+    rifle.add(ocular);
+    const objective = new THREE.Mesh(new THREE.CircleGeometry(0.028, 14),
+      new THREE.MeshBasicMaterial({ color: 0x2a5a7a }));
+    objective.rotation.y = Math.PI;
+    objective.position.set(0, 0.115, -0.186);
+    rifle.add(objective);
+    // mount rings + turrets
+    [-0.16, -0.05].forEach(z => {
+      const ring = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.045, 0.03), gunmetal);
+      ring.position.set(0, 0.085, z);
+      rifle.add(ring);
+    });
+    const turret = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.03, 8), black);
+    turret.position.set(0, 0.15, -0.1); rifle.add(turret);
+    const turret2 = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.03, 8), black);
+    turret2.rotation.z = Math.PI / 2; turret2.position.set(0.045, 0.115, -0.1); rifle.add(turret2);
     mkHands(rifle,
       new THREE.Vector3(0, -0.05, -0.47),   // left on handguard
       new THREE.Vector3(0.005, -0.09, -0.03) // right on grip

@@ -71,137 +71,161 @@ export class Bot {
   buildMesh() {
     const t = this.type;
     const g = new THREE.Group();
-    const bodyMat = new THREE.MeshStandardMaterial({ color: t.body, roughness: 0.55, metalness: 0.55 });
-    const gearMat = new THREE.MeshStandardMaterial({ color: t.gear, roughness: 0.45, metalness: 0.7 });
-    const visorMat = new THREE.MeshBasicMaterial({ color: t.visor });
-    const trimMat = new THREE.MeshBasicMaterial({ color: t.visor, transparent: true, opacity: 0.85 });
-    const jointMat = new THREE.MeshStandardMaterial({ color: 0x111318, roughness: 0.9, metalness: 0.3 });
+    const cloth = new THREE.MeshStandardMaterial({ color: t.body, roughness: 0.95, metalness: 0 });
+    const gear = new THREE.MeshStandardMaterial({ color: t.gear, roughness: 0.75, metalness: 0.15 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x1b1b1f, roughness: 0.85, metalness: 0.1 });
+    const skin = new THREE.MeshStandardMaterial({ color: 0xb98a68, roughness: 0.9 });
+    const team = new THREE.MeshBasicMaterial({ color: t.visor });   // team accent — scarf/armband/goggles
+    const steel = new THREE.MeshStandardMaterial({ color: 0x555a60, roughness: 0.4, metalness: 0.8 });
     const s = t.height / 1.8;
 
-    // ── torso: layered robotic armor ──
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6 * s, 0.7 * s, 0.34 * s), bodyMat);
-    torso.position.y = 1.08 * s;
+    // ── torso: human body + plate carrier vest ──
+    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.185 * s, 0.42 * s, 4, 10), cloth);
+    torso.position.y = 1.12 * s;
+    torso.scale.z = 0.82;
     torso.userData = { bot: this, part: 'body' };
     g.add(torso);
-    // upper chest plate + abdomen plate
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.5 * s, 0.34 * s, 0.08 * s), gearMat);
-    plate.position.set(0, 1.24 * s, 0.18 * s);
-    g.add(plate);
-    const plate2 = new THREE.Mesh(new THREE.BoxGeometry(0.4 * s, 0.18 * s, 0.07 * s), gearMat);
-    plate2.position.set(0, 0.84 * s, 0.17 * s);
-    g.add(plate2);
-    // glowing reactor core (rotated diamond)
-    const core = new THREE.Mesh(new THREE.BoxGeometry(0.11 * s, 0.11 * s, 0.03 * s), visorMat);
-    core.position.set(0, 1.24 * s, 0.235 * s);
-    core.rotation.z = Math.PI / 4;
-    g.add(core);
-    // thin glowing chest line
-    const chestLine = new THREE.Mesh(new THREE.BoxGeometry(0.3 * s, 0.02 * s, 0.02 * s), trimMat);
-    chestLine.position.set(0, 1.0 * s, 0.2 * s);
-    g.add(chestLine);
-    // backpack power unit
-    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.4 * s, 0.46 * s, 0.16 * s), gearMat);
-    pack.position.set(0, 1.16 * s, -0.24 * s);
+    const vest = new THREE.Mesh(new THREE.CapsuleGeometry(0.21 * s, 0.34 * s, 4, 10), gear);
+    vest.position.y = 1.16 * s;
+    vest.scale.z = 0.9;
+    g.add(vest);
+    // mag pouches on the carrier
+    for (let i = -1; i <= 1; i++) {
+      const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.1 * s, 0.11 * s, 0.06 * s), dark);
+      pouch.position.set(i * 0.11 * s, 1.05 * s, 0.19 * s);
+      g.add(pouch);
+    }
+    // belt + hips
+    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * s, 0.2 * s, 0.06 * s, 12), dark);
+    belt.position.y = 0.87 * s;
+    g.add(belt);
+    const hips = new THREE.Mesh(new THREE.SphereGeometry(0.17 * s, 10, 8), cloth);
+    hips.position.y = 0.68 * s;
+    hips.scale.set(1.1, 0.75, 0.9);
+    g.add(hips);
+    // backpack + bedroll
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.28 * s, 0.36 * s, 0.15 * s), gear);
+    pack.position.set(0, 1.18 * s, -0.24 * s);
     g.add(pack);
-    const packGlow = new THREE.Mesh(new THREE.BoxGeometry(0.2 * s, 0.05 * s, 0.02 * s), trimMat);
-    packGlow.position.set(0, 1.3 * s, -0.33 * s);
-    g.add(packGlow);
+    const bedroll = new THREE.Mesh(new THREE.CylinderGeometry(0.06 * s, 0.06 * s, 0.28 * s, 8), cloth);
+    bedroll.rotation.z = Math.PI / 2;
+    bedroll.position.set(0, 0.97 * s, -0.25 * s);
+    g.add(bedroll);
+    // team scarf — dushman ka type pehchano (grunt/stalker/brute colour)
+    const scarf = new THREE.Mesh(new THREE.CylinderGeometry(0.115 * s, 0.13 * s, 0.09 * s, 10), team);
+    scarf.position.y = 1.44 * s;
+    g.add(scarf);
 
-    // ── head: helmet, full visor band, jaw plate, side sensor pods ──
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * s, 0.1 * s, 0.12 * s, 8), jointMat);
-    neck.position.y = 1.44 * s;
-    g.add(neck);
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.34 * s, 0.34 * s, 0.36 * s), gearMat);
-    head.position.y = 1.62 * s;
+    // ── head: face + balaclava + combat helmet + goggles ──
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.13 * s, 14, 12), skin);
+    head.position.y = 1.6 * s;
+    head.scale.z = 0.92;
     head.userData = { bot: this, part: 'head' };
     g.add(head);
-    const helm = new THREE.Mesh(new THREE.BoxGeometry(0.38 * s, 0.11 * s, 0.4 * s), bodyMat);
-    helm.position.y = 1.78 * s;
+    const face = new THREE.Mesh(new THREE.SphereGeometry(0.125 * s, 12, 10), dark);
+    face.position.set(0, 1.565 * s, 0.02 * s);
+    face.scale.set(1.02, 0.75, 1.0);
+    g.add(face);
+    const helm = new THREE.Mesh(
+      new THREE.SphereGeometry(0.15 * s, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), gear);
+    helm.position.y = 1.615 * s;
+    helm.scale.z = 1.05;
     g.add(helm);
-    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.3 * s, 0.09 * s, 0.03 * s), visorMat);
-    visor.position.set(0, 1.64 * s, 0.19 * s);
+    const helmBack = new THREE.Mesh(new THREE.BoxGeometry(0.24 * s, 0.12 * s, 0.1 * s), gear);
+    helmBack.position.set(0, 1.56 * s, -0.115 * s);
+    g.add(helmBack);
+    const gogFrame = new THREE.Mesh(new THREE.BoxGeometry(0.235 * s, 0.07 * s, 0.05 * s), dark);
+    gogFrame.position.set(0, 1.64 * s, 0.105 * s);
+    g.add(gogFrame);
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.19 * s, 0.042 * s, 0.02 * s), team);
+    visor.position.set(0, 1.64 * s, 0.133 * s);
     g.add(visor);
-    const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.26 * s, 0.1 * s, 0.07 * s), jointMat);
-    jaw.position.set(0, 1.49 * s, 0.17 * s);
-    g.add(jaw);
-    const podL = new THREE.Mesh(new THREE.BoxGeometry(0.06 * s, 0.1 * s, 0.14 * s), gearMat);
-    podL.position.set(0.2 * s, 1.62 * s, 0);
-    g.add(podL);
-    const podR = podL.clone(); podR.position.x = -0.2 * s; g.add(podR);
-    // no per-bot light in bright map (perf) — visor material glows enough
+    const strapL = new THREE.Mesh(new THREE.BoxGeometry(0.02 * s, 0.1 * s, 0.02 * s), dark);
+    strapL.position.set(0.115 * s, 1.545 * s, 0.03 * s); g.add(strapL);
+    const strapR = strapL.clone(); strapR.position.x = -0.115 * s; g.add(strapR);
+    // no per-bot light in bright map (perf)
     this.visorGlow = null;
 
-    // small antenna (grunt) / horns only for brute
+    // JUGGERNAUT: heavy ballistic faceplate
     if (this.typeKey === 'brute') {
-      const hornGeo = new THREE.ConeGeometry(0.05 * s, 0.24 * s, 6);
-      const h1 = new THREE.Mesh(hornGeo, gearMat);
-      h1.position.set(0.13 * s, 1.88 * s, 0); h1.rotation.z = -0.4; g.add(h1);
-      const h2 = h1.clone(); h2.position.x = -0.13 * s; h2.rotation.z = 0.4; g.add(h2);
-    } else if (this.typeKey === 'grunt') {
-      const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.3 * s, 4), gearMat);
-      ant.position.set(0.14 * s, 1.9 * s, -0.05 * s); g.add(ant);
-      const antTip = new THREE.Mesh(new THREE.SphereGeometry(0.02 * s, 5, 4), visorMat);
-      antTip.position.set(0.14 * s, 2.05 * s, -0.05 * s); g.add(antTip);
+      const facePlate = new THREE.Mesh(new THREE.BoxGeometry(0.26 * s, 0.14 * s, 0.05 * s), gear);
+      facePlate.position.set(0, 1.585 * s, 0.115 * s);
+      g.add(facePlate);
+      const slit = new THREE.Mesh(new THREE.BoxGeometry(0.2 * s, 0.03 * s, 0.02 * s), team);
+      slit.position.set(0, 1.61 * s, 0.145 * s);
+      g.add(slit);
     }
 
-    // ── arms (segment + elbow joint + hand as children → follow walk swing) ──
-    const armGeo = new THREE.BoxGeometry(0.15 * s, 0.5 * s, 0.15 * s);
-    const armL = new THREE.Mesh(armGeo, bodyMat);
-    armL.position.set(0.4 * s, 1.04 * s, 0);
+    // ── arms: pivot at shoulder (capsule hangs down) — realistic proportions ──
+    const armGeo = new THREE.CapsuleGeometry(0.055 * s, 0.3 * s, 4, 8);
+    armGeo.translate(0, -0.21 * s, 0);
+    const armL = new THREE.Mesh(armGeo, cloth);
+    armL.position.set(0.235 * s, 1.36 * s, 0);
     armL.userData = { bot: this, part: 'body' };
     g.add(armL);
-    const armR = armL.clone();
-    armR.position.x = -0.4 * s;
+    const armR = new THREE.Mesh(armGeo, cloth);
+    armR.position.set(-0.235 * s, 1.36 * s, 0);
     armR.userData = { bot: this, part: 'body' };
     g.add(armR);
-    const elbGeo = new THREE.SphereGeometry(0.09 * s, 8, 6);
-    const elbL = new THREE.Mesh(elbGeo, jointMat); elbL.position.set(0, -0.26 * s, 0); armL.add(elbL);
-    const elbR = new THREE.Mesh(elbGeo, jointMat); elbR.position.set(0, -0.26 * s, 0); armR.add(elbR);
-    const handGeo = new THREE.BoxGeometry(0.12 * s, 0.11 * s, 0.13 * s);
-    const handL = new THREE.Mesh(handGeo, jointMat); handL.position.set(0, -0.33 * s, 0.05 * s); armL.add(handL);
-    const handR = new THREE.Mesh(handGeo, jointMat); handR.position.set(0, -0.33 * s, 0.05 * s); armR.add(handR);
-    // shoulder pads w/ glow trim
-    const padGeo = new THREE.BoxGeometry(0.22 * s, 0.14 * s, 0.24 * s);
-    const padL = new THREE.Mesh(padGeo, gearMat);
-    padL.position.set(0.42 * s, 1.38 * s, 0); g.add(padL);
-    const padR = padL.clone(); padR.position.x = -0.42 * s; g.add(padR);
-    const trimL = new THREE.Mesh(new THREE.BoxGeometry(0.2 * s, 0.02 * s, 0.22 * s), trimMat);
-    trimL.position.set(0.42 * s, 1.45 * s, 0); g.add(trimL);
-    const trimR = trimL.clone(); trimR.position.x = -0.42 * s; g.add(trimR);
+    // base pose: arms hold the weapon (melee types swing free)
+    if (t.attack === 'ranged') {
+      armL.rotation.x = -0.85; armL.rotation.z = -0.2;
+      armR.rotation.x = -0.35; armR.rotation.z = 0.2;
+    }
+    // elbow + glove (children follow swing)
+    const elbGeo = new THREE.SphereGeometry(0.058 * s, 8, 6);
+    const elbL = new THREE.Mesh(elbGeo, cloth); elbL.position.y = -0.2 * s; armL.add(elbL);
+    const elbR = new THREE.Mesh(elbGeo, cloth); elbR.position.y = -0.2 * s; armR.add(elbR);
+    const gloveGeo = new THREE.SphereGeometry(0.06 * s, 8, 6);
+    const glL = new THREE.Mesh(gloveGeo, dark); glL.position.y = -0.4 * s; armL.add(glL);
+    const glR = new THREE.Mesh(gloveGeo, dark); glR.position.y = -0.4 * s; armR.add(glR);
+    // team armband on left sleeve
+    const armband = new THREE.Mesh(new THREE.CylinderGeometry(0.062 * s, 0.062 * s, 0.05 * s, 8), team);
+    armband.position.y = -0.12 * s; armL.add(armband);
+    // shoulder caps
+    const capGeo = new THREE.SphereGeometry(0.085 * s, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.55);
+    const capL = new THREE.Mesh(capGeo, gear); capL.position.set(0.235 * s, 1.37 * s, 0); capL.rotation.z = -0.4; g.add(capL);
+    const capR = new THREE.Mesh(capGeo, gear); capR.position.set(-0.235 * s, 1.37 * s, 0); capR.rotation.z = 0.4; g.add(capR);
 
-    // ── legs (knee pads + boots as children → follow walk swing) ──
-    const legGeo = new THREE.BoxGeometry(0.17 * s, 0.56 * s, 0.19 * s);
-    const legL = new THREE.Mesh(legGeo, bodyMat);
-    legL.position.set(0.16 * s, 0.36 * s, 0);
+    // ── legs: pivot at hip ──
+    const legGeo = new THREE.CapsuleGeometry(0.07 * s, 0.34 * s, 4, 8);
+    legGeo.translate(0, -0.26 * s, 0);
+    const legL = new THREE.Mesh(legGeo, cloth);
+    legL.position.set(0.115 * s, 0.62 * s, 0);
     legL.userData = { bot: this, part: 'body' };
     g.add(legL);
-    const legR = legL.clone();
-    legR.position.x = -0.16 * s;
+    const legR = new THREE.Mesh(legGeo, cloth);
+    legR.position.set(-0.115 * s, 0.62 * s, 0);
     legR.userData = { bot: this, part: 'body' };
     g.add(legR);
-    const kneeGeo = new THREE.BoxGeometry(0.15 * s, 0.12 * s, 0.07 * s);
-    const kneeL = new THREE.Mesh(kneeGeo, gearMat); kneeL.position.set(0, -0.08 * s, 0.12 * s); legL.add(kneeL);
-    const kneeR = new THREE.Mesh(kneeGeo, gearMat); kneeR.position.set(0, -0.08 * s, 0.12 * s); legR.add(kneeR);
-    const bootGeo = new THREE.BoxGeometry(0.19 * s, 0.1 * s, 0.29 * s);
-    const bootL = new THREE.Mesh(bootGeo, jointMat); bootL.position.set(0, -0.3 * s, 0.05 * s); legL.add(bootL);
-    const bootR = new THREE.Mesh(bootGeo, jointMat); bootR.position.set(0, -0.3 * s, 0.05 * s); legR.add(bootR);
+    // knee pads + boots (children follow swing)
+    const kneeGeo = new THREE.SphereGeometry(0.07 * s, 8, 6);
+    const kneeL = new THREE.Mesh(kneeGeo, gear); kneeL.position.set(0, -0.34 * s, 0.03 * s); legL.add(kneeL);
+    const kneeR = new THREE.Mesh(kneeGeo, gear); kneeR.position.set(0, -0.34 * s, 0.03 * s); legR.add(kneeR);
+    const bootGeo = new THREE.BoxGeometry(0.14 * s, 0.1 * s, 0.26 * s);
+    const bootL = new THREE.Mesh(bootGeo, dark); bootL.position.set(0, -0.55 * s, 0.05 * s); legL.add(bootL);
+    const bootR = new THREE.Mesh(bootGeo, dark); bootR.position.set(0, -0.55 * s, 0.05 * s); legR.add(bootR);
 
     // ── weapons ──
     if (t.attack === 'ranged') {
-      // rifle held OUT IN FRONT (bot local +z faces the player) so it's clearly visible
+      // rifle held across the chest, pointing forward (local +z faces the player)
       const gun = new THREE.Group();
-      const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.08 * s, 0.11 * s, 0.62 * s), gearMat);
+      const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.07 * s, 0.1 * s, 0.62 * s), steel);
       gun.add(gunBody);
-      const gunGlow = new THREE.Mesh(new THREE.BoxGeometry(0.03 * s, 0.03 * s, 0.36 * s), visorMat);
-      gunGlow.position.set(0, 0.015 * s, 0.2 * s);
-      gun.add(gunGlow);
-      const mag = new THREE.Mesh(new THREE.BoxGeometry(0.05 * s, 0.16 * s, 0.09 * s), gearMat);
-      mag.position.set(0, -0.12 * s, -0.06 * s);
+      const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.075 * s, 0.08 * s, 0.2 * s), dark);
+      handguard.position.set(0, -0.005 * s, 0.22 * s);
+      gun.add(handguard);
+      const mag = new THREE.Mesh(new THREE.BoxGeometry(0.05 * s, 0.15 * s, 0.08 * s), dark);
+      mag.position.set(0, -0.11 * s, -0.04 * s);
       gun.add(mag);
-      const stock = new THREE.Mesh(new THREE.BoxGeometry(0.06 * s, 0.09 * s, 0.16 * s), gearMat);
-      stock.position.set(0, -0.02 * s, -0.38 * s);
+      const stock = new THREE.Mesh(new THREE.BoxGeometry(0.055 * s, 0.09 * s, 0.18 * s), dark);
+      stock.position.set(0, -0.015 * s, -0.38 * s);
       gun.add(stock);
-      gun.position.set(0.34 * s, 1.14 * s, 0.34 * s);
+      const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.03 * s, 0.03 * s, 0.16 * s, 10), dark);
+      scope.rotation.x = Math.PI / 2;
+      scope.position.set(0, 0.09 * s, -0.06 * s);
+      gun.add(scope);
+      gun.position.set(0, 1.13 * s, 0.36 * s);
       g.add(gun);
       this.gunMuzzle = gun;
       // muzzle marker — shots spawn from the barrel tip
@@ -210,10 +234,14 @@ export class Bot {
       gun.add(tip);
       this.gunTip = tip;
     } else if (t.attack === 'melee' && this.typeKey === 'stalker') {
-      // blade held forward
-      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.03 * s, 0.03 * s, 0.55 * s), visorMat);
-      blade.position.set(-0.4 * s, 0.95 * s, 0.3 * s);
+      // combat knife held forward
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.03 * s, 0.035 * s, 0.34 * s), steel);
+      blade.position.set(0.15 * s, 1.02 * s, 0.42 * s);
       g.add(blade);
+      const hilt = new THREE.Mesh(new THREE.CylinderGeometry(0.025 * s, 0.025 * s, 0.12 * s, 8), dark);
+      hilt.rotation.x = Math.PI / 2;
+      hilt.position.set(0.15 * s, 1.02 * s, 0.22 * s);
+      g.add(hilt);
     }
 
     this.parts = { torso, head, armL, armR, legL, legR, visor };
@@ -363,8 +391,14 @@ export class Bot {
     const sw = Math.sin(this.animT * cycle) * amp;
     this.parts.legL.rotation.x = sw;
     this.parts.legR.rotation.x = -sw;
-    this.parts.armL.rotation.x = -sw * 0.6;
-    this.parts.armR.rotation.x = sw * 0.6;
+    if (t.attack === 'ranged') {
+      // rifle stays shouldered — arms just sway
+      this.parts.armL.rotation.x = -0.85 - sw * 0.18;
+      this.parts.armR.rotation.x = -0.35 + sw * 0.18;
+    } else {
+      this.parts.armL.rotation.x = -sw * 0.6;
+      this.parts.armR.rotation.x = sw * 0.6;
+    }
     // body bob + slight lean
     const bob = moving ? Math.abs(Math.sin(this.animT * cycle)) * 0.06 : Math.abs(Math.sin(this.animT * 2)) * 0.02;
     this.mesh.position.set(this.pos.x, this.pos.y + bob, this.pos.z);

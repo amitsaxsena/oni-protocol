@@ -6,53 +6,72 @@ const EYE = 1.62;
 const CROUCH_EYE = 1.05;
 const RADIUS = 0.42;
 
-// third-person player body (only visible when POV = TPP, F4 toggles)
+// third-person player body — realistic soldier (only visible when POV = TPP, F4 toggles)
 function buildBody() {
   const g = new THREE.Group();
-  const suit = new THREE.MeshStandardMaterial({ color: 0x2e3a4a, roughness: 0.6, metalness: 0.35 });
-  const gear = new THREE.MeshStandardMaterial({ color: 0x171c24, roughness: 0.5, metalness: 0.6 });
+  const cloth = new THREE.MeshStandardMaterial({ color: 0x2e3a4a, roughness: 0.95, metalness: 0 });
+  const gear = new THREE.MeshStandardMaterial({ color: 0x171c24, roughness: 0.75, metalness: 0.15 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: 0.85 });
+  const skin = new THREE.MeshStandardMaterial({ color: 0xc09575, roughness: 0.9 });
   const accent = new THREE.MeshBasicMaterial({ color: 0x37d6ff });
-  const metal = new THREE.MeshStandardMaterial({ color: 0x6a7280, roughness: 0.35, metalness: 0.85 });
+  const steel = new THREE.MeshStandardMaterial({ color: 0x555a60, roughness: 0.4, metalness: 0.8 });
 
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.66, 0.32), suit);
-  torso.position.y = 1.1; g.add(torso);
-  const vest = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.5, 0.07), gear);
-  vest.position.set(0, 1.12, 0.17); g.add(vest);
-  const strip = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.03, 0.02), accent);
-  strip.position.set(0, 1.26, 0.21); g.add(strip);
-  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.44, 0.16), gear);
-  pack.position.set(0, 1.14, -0.24); g.add(pack);
+  // torso + plate carrier + belt + hips
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.185, 0.42, 4, 10), cloth);
+  torso.position.y = 1.12; torso.scale.z = 0.82; g.add(torso);
+  const vest = new THREE.Mesh(new THREE.CapsuleGeometry(0.21, 0.34, 4, 10), gear);
+  vest.position.y = 1.16; vest.scale.z = 0.9; g.add(vest);
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.03, 0.02), accent);
+  strip.position.set(0, 1.26, 0.2); g.add(strip);
+  const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 12), dark);
+  belt.position.y = 0.87; g.add(belt);
+  const hips = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 8), cloth);
+  hips.position.y = 0.68; hips.scale.set(1.1, 0.75, 0.9); g.add(hips);
+  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.36, 0.15), gear);
+  pack.position.set(0, 1.18, -0.24); g.add(pack);
 
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.32, 0.34), gear);
-  head.position.y = 1.6; g.add(head);
-  const helmTop = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.1, 0.37), suit);
-  helmTop.position.y = 1.75; g.add(helmTop);
-  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.07, 0.03), accent);
-  visor.position.set(0, 1.62, 0.18); g.add(visor);
+  // head: face + balaclava + helmet + goggles
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 12), skin);
+  head.position.y = 1.6; head.scale.z = 0.92; g.add(head);
+  const face = new THREE.Mesh(new THREE.SphereGeometry(0.125, 12, 10), dark);
+  face.position.set(0, 1.565, 0.02); face.scale.set(1.02, 0.75, 1.0); g.add(face);
+  const helm = new THREE.Mesh(new THREE.SphereGeometry(0.15, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), gear);
+  helm.position.y = 1.615; helm.scale.z = 1.05; g.add(helm);
+  const gogFrame = new THREE.Mesh(new THREE.BoxGeometry(0.235, 0.07, 0.05), dark);
+  gogFrame.position.set(0, 1.64, 0.105); g.add(gogFrame);
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.042, 0.02), accent);
+  visor.position.set(0, 1.64, 0.133); g.add(visor);
 
-  const armGeo = new THREE.BoxGeometry(0.14, 0.54, 0.14);
-  const armL = new THREE.Mesh(armGeo, suit); armL.position.set(0.37, 1.08, 0); g.add(armL);
-  const armR = new THREE.Mesh(armGeo, suit); armR.position.set(-0.37, 1.08, 0); g.add(armR);
-  const padGeo = new THREE.BoxGeometry(0.2, 0.12, 0.22);
-  const padL = new THREE.Mesh(padGeo, gear); padL.position.set(0.39, 1.38, 0); g.add(padL);
-  const padR = padL.clone(); padR.position.x = -0.39; g.add(padR);
+  // arms — pivot at shoulder, held on the rifle
+  const armGeo = new THREE.CapsuleGeometry(0.055, 0.3, 4, 8);
+  armGeo.translate(0, -0.21, 0);
+  const armL = new THREE.Mesh(armGeo, cloth);
+  armL.position.set(0.235, 1.36, 0); armL.rotation.x = -0.85; armL.rotation.z = -0.2; g.add(armL);
+  const armR = new THREE.Mesh(armGeo, cloth);
+  armR.position.set(-0.235, 1.36, 0); armR.rotation.x = -0.35; armR.rotation.z = 0.2; g.add(armR);
+  const glL = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), dark); glL.position.y = -0.4; armL.add(glL);
+  const glR = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), dark); glR.position.y = -0.4; armR.add(glR);
 
-  const legGeo = new THREE.BoxGeometry(0.17, 0.58, 0.18);
-  const legL = new THREE.Mesh(legGeo, suit); legL.position.set(0.15, 0.34, 0); g.add(legL);
-  const legR = new THREE.Mesh(legGeo, suit); legR.position.set(-0.15, 0.34, 0); g.add(legR);
-  const bootGeo = new THREE.BoxGeometry(0.19, 0.1, 0.28);
-  const bootL = new THREE.Mesh(bootGeo, gear); bootL.position.set(0, -0.3, 0.05); legL.add(bootL);
+  // legs — pivot at hip + boots
+  const legGeo = new THREE.CapsuleGeometry(0.07, 0.34, 4, 8);
+  legGeo.translate(0, -0.26, 0);
+  const legL = new THREE.Mesh(legGeo, cloth);
+  legL.position.set(0.115, 0.62, 0); g.add(legL);
+  const legR = new THREE.Mesh(legGeo, cloth);
+  legR.position.set(-0.115, 0.62, 0); g.add(legR);
+  const bootL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.26), dark);
+  bootL.position.set(0, -0.55, 0.05); legL.add(bootL);
   const bootR = bootL.clone(); legR.add(bootR);
 
-  // rifle held forward
+  // rifle held across the chest, pointing forward
   const gun = new THREE.Group();
-  const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.1, 0.55), metal);
-  gun.add(barrel);
-  const gm = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.08), gear);
+  const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.1, 0.62), steel);
+  gun.add(gunBody);
+  const gm = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.15, 0.08), dark);
   gm.position.set(0, -0.11, -0.04); gun.add(gm);
-  const gglow = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.3), accent);
-  gglow.position.set(0, 0.02, 0.14); gun.add(gglow);
-  gun.position.set(0.26, 1.12, 0.36);
+  const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.034, 0.16, 10), dark);
+  scope.rotation.x = Math.PI / 2; scope.position.set(0, 0.09, -0.06); gun.add(scope);
+  gun.position.set(0, 1.13, 0.36);
   g.add(gun);
 
   g.visible = false;
@@ -276,8 +295,8 @@ export class Player {
       const sw = Math.sin(this._animT * cyc) * amp;
       B.parts.legL.rotation.x = sw;
       B.parts.legR.rotation.x = -sw;
-      B.parts.armL.rotation.x = -sw * 0.25;
-      B.parts.armR.rotation.x = sw * 0.25;
+      B.parts.armL.rotation.x = -0.85 - sw * 0.2;
+      B.parts.armR.rotation.x = -0.35 + sw * 0.2;
       const scaleTarget = this.crouching ? 0.74 : 1;
       this._bodyScale += (scaleTarget - this._bodyScale) * Math.min(1, dt * 10);
       B.group.scale.y = this._bodyScale;

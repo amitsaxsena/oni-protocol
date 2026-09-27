@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DUST STRIKE // Tactical FPS</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=10">
 <script type="importmap">
 {
   "imports": {
-    "three": "./libs/three.module.js?v=9"
+    "three": "./libs/three.module.js?v=10"
   }
 }
 </script>
@@ -73,6 +73,17 @@
   </div>
   <div id="combo"></div>
 
+  <!-- scope (ADS) overlay -->
+  <div id="scope-overlay">
+    <div class="scope-lens">
+      <div class="scope-ring"></div>
+      <div class="scope-cross-h"></div>
+      <div class="scope-cross-v"></div>
+      <div class="scope-dot"></div>
+      <div class="scope-glare"></div>
+    </div>
+  </div>
+
   <div id="banner">
     <div id="banner-main">WAVE 1</div>
     <div id="banner-sub">ONI INCOMING</div>
@@ -124,6 +135,6 @@
 </div>
 <div id="error-msg"></div>
 
-<script type="module" src="main.js?v=9"></script>
+<script type="module" src="main.js?v=10"></script>
 </body>
 </html>
