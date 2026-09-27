@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DUST STRIKE // Tactical FPS</title>
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./libs/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+
+<canvas id="game-canvas"></canvas>
+
+<div id="vignette"></div>
+<div id="scanlines"></div>
+<div id="vignette-damage"></div>
+<div id="vignette-dash"></div>
+<div id="vignette-heal"></div>
+<div id="damage-layer"></div>
+
+<!-- ═══════════ HUD ═══════════ -->
+<div id="hud">
+  <!-- health -->
+  <div class="hud-panel" id="health-panel">
+    <div id="health-label"><span>VITALS // 体力</span><span id="health-num">100</span></div>
+    <div id="health-bar-outer"><div id="health-bar"></div></div>
+    <div id="dash-cd"><div id="dash-cd-fill"></div></div>
+  </div>
+
+  <!-- ammo -->
+  <div class="hud-panel" id="ammo-panel">
+    <div id="weapon-name">PULSE RIFLE</div>
+    <div id="ammo-line">
+      <span id="ammo-mag">30</span><span id="ammo-reserve"> / 120</span>
+    </div>
+    <div id="reload-hint"></div>
+    <div id="reload-bar-outer"><div id="reload-bar"></div></div>
+    <div id="weapon-slots">
+      <div class="wslot active" id="slot-1">1 RIFLE</div>
+      <div class="wslot" id="slot-2">2 SHOTGUN</div>
+      <div class="wslot" id="slot-3">3 KATANA</div>
+    </div>
+  </div>
+
+  <!-- wave -->
+  <div class="hud-panel" id="wave-panel">
+    <div id="wave-title">WAVE // 波</div>
+    <div id="wave-line">1</div>
+    <div id="wave-enemies">HOSTILES: 0</div>
+  </div>
+
+  <!-- score -->
+  <div class="hud-panel" id="score-panel">
+    <div id="score-title">SCORE // 点</div>
+    <div id="score-num">0</div>
+  </div>
+
+  <div id="killfeed"></div>
+
+  <!-- crosshair -->
+  <div id="crosshair">
+    <div class="ch-t"></div><div class="ch-b"></div>
+    <div class="ch-l"></div><div class="ch-r"></div><div class="ch-c"></div>
+  </div>
+  <div id="hitmarker">
+    <div class="hm1"></div><div class="hm2"></div><div class="hm3"></div><div class="hm4"></div>
+  </div>
+  <div id="combo"></div>
+
+  <div id="banner">
+    <div id="banner-main">WAVE 1</div>
+    <div id="banner-sub">ONI INCOMING</div>
+  </div>
+</div>
+
+<!-- ═══════════ START SCREEN ═══════════ -->
+<div class="screen" id="start-screen">
+  <div class="kanji-bg">鬼</div>
+  <div class="title-glitch" data-text="DUST STRIKE">DUST STRIKE</div>
+  <div class="subtitle">DESERT OPS // TACTICAL SHOOTER</div>
+  <button class="btn" id="btn-start">ENTER THE GRID</button>
+  <div class="controls-box">
+    <div><b>WASD</b> Move</div>          <div><b>MOUSE</b> Aim</div>
+    <div><b>LMB</b> Fire</div>           <div><b>RMB</b> Aim / Guard</div>
+    <div><b>SHIFT</b> Dash</div>         <div><b>SPACE</b> Jump ×2</div>
+    <div><b>R</b> Reload</div>           <div><b>1 / 2 / 3</b> Weapons</div>
+    <div><b>Q</b> Quick Katana</div>     <div><b>ESC / P</b> Pause</div>
+  </div>
+</div>
+
+<!-- ═══════════ PAUSE ═══════════ -->
+<div class="screen hidden" id="pause-screen">
+  <div class="kanji-bg">休</div>
+  <div class="title-glitch" data-text="PAUSED" style="font-size: clamp(30px,6vw,60px);">PAUSED</div>
+  <div class="subtitle">SYSTEM HALTED</div>
+  <button class="btn" id="btn-resume">RESUME</button>
+</div>
+
+<!-- ═══════════ GAME OVER ═══════════ -->
+<div class="screen hidden" id="gameover">
+  <div class="kanji-bg">死</div>
+  <div class="title-glitch" data-text="YOU DIED" style="font-size: clamp(34px,7vw,72px); text-shadow: 0 0 20px #ff2d4d, 0 0 60px rgba(255,45,77,.5);">YOU DIED</div>
+  <div class="subtitle">YOU WERE ELIMINATED</div>
+  <div class="stats">
+    <div class="stat"><div class="v" id="final-wave">1</div><div class="k">WAVE</div></div>
+    <div class="stat"><div class="v" id="final-kills">0</div><div class="k">KILLS</div></div>
+    <div class="stat"><div class="v" id="final-score">0</div><div class="k">SCORE</div></div>
+    <div class="stat"><div class="v" id="final-accuracy">0%</div><div class="k">ACCURACY</div></div>
+  </div>
+  <button class="btn" id="btn-restart">RETRY // 再挑戦</button>
+</div>
+
+<div id="loading">
+  <div class="t">LOADING NEON GRID</div>
+  <div class="bar"><div></div></div>
+</div>
+<div id="error-msg"></div>
+
+<script type="module" src="main.js?v=8"></script>
+</body>
+</html>
