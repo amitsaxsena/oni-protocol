@@ -1,5 +1,6 @@
 // ═══════════ Chinese wall art — murals, banners, door signs ═══════════
 import * as THREE from 'three';
+import { ARENA } from './world.js?v=9';
 
 // calligraphy-style large character
 function calligraphyTexture(char, color = '#8a1a1a', bg = '#e8dcc0') {
@@ -147,7 +148,7 @@ function plaqueTexture(char = '福') {
 export function buildChineseArt(world) {
   const group = new THREE.Group();
   world.group.add(group);
-  const H = 42;
+  const H = ARENA.half;
 
   // ── big mural on north boundary wall (facing player spawn) ──
   const mural = new THREE.Mesh(

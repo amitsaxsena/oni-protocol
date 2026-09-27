@@ -1,5 +1,6 @@
 // ═══════════════ BOTS v2 — dark operators with glowing optics ═══════════════
 import * as THREE from 'three';
+import { ARENA } from './world.js?v=9';
 
 const BOT_TYPES = {
   grunt: {
@@ -70,34 +71,63 @@ export class Bot {
   buildMesh() {
     const t = this.type;
     const g = new THREE.Group();
-    const bodyMat = new THREE.MeshStandardMaterial({ color: t.body, roughness: 0.6, metalness: 0.5 });
-    const gearMat = new THREE.MeshStandardMaterial({ color: t.gear, roughness: 0.5, metalness: 0.7 });
+    const bodyMat = new THREE.MeshStandardMaterial({ color: t.body, roughness: 0.55, metalness: 0.55 });
+    const gearMat = new THREE.MeshStandardMaterial({ color: t.gear, roughness: 0.45, metalness: 0.7 });
     const visorMat = new THREE.MeshBasicMaterial({ color: t.visor });
     const trimMat = new THREE.MeshBasicMaterial({ color: t.visor, transparent: true, opacity: 0.85 });
+    const jointMat = new THREE.MeshStandardMaterial({ color: 0x111318, roughness: 0.9, metalness: 0.3 });
     const s = t.height / 1.8;
 
-    // ── torso: tactical vest look ──
+    // ── torso: layered robotic armor ──
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6 * s, 0.7 * s, 0.34 * s), bodyMat);
     torso.position.y = 1.08 * s;
     torso.userData = { bot: this, part: 'body' };
     g.add(torso);
-    // vest plate
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.5 * s, 0.5 * s, 0.06 * s), gearMat);
-    plate.position.set(0, 1.12 * s, 0.17 * s);
+    // upper chest plate + abdomen plate
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.5 * s, 0.34 * s, 0.08 * s), gearMat);
+    plate.position.set(0, 1.24 * s, 0.18 * s);
     g.add(plate);
+    const plate2 = new THREE.Mesh(new THREE.BoxGeometry(0.4 * s, 0.18 * s, 0.07 * s), gearMat);
+    plate2.position.set(0, 0.84 * s, 0.17 * s);
+    g.add(plate2);
+    // glowing reactor core (rotated diamond)
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.11 * s, 0.11 * s, 0.03 * s), visorMat);
+    core.position.set(0, 1.24 * s, 0.235 * s);
+    core.rotation.z = Math.PI / 4;
+    g.add(core);
     // thin glowing chest line
     const chestLine = new THREE.Mesh(new THREE.BoxGeometry(0.3 * s, 0.02 * s, 0.02 * s), trimMat);
-    chestLine.position.set(0, 1.2 * s, 0.2 * s);
+    chestLine.position.set(0, 1.0 * s, 0.2 * s);
     g.add(chestLine);
+    // backpack power unit
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.4 * s, 0.46 * s, 0.16 * s), gearMat);
+    pack.position.set(0, 1.16 * s, -0.24 * s);
+    g.add(pack);
+    const packGlow = new THREE.Mesh(new THREE.BoxGeometry(0.2 * s, 0.05 * s, 0.02 * s), trimMat);
+    packGlow.position.set(0, 1.3 * s, -0.33 * s);
+    g.add(packGlow);
 
-    // ── head: helmet + glowing visor ──
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.36 * s, 0.36 * s, 0.38 * s), gearMat);
+    // ── head: helmet, full visor band, jaw plate, side sensor pods ──
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * s, 0.1 * s, 0.12 * s, 8), jointMat);
+    neck.position.y = 1.44 * s;
+    g.add(neck);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.34 * s, 0.34 * s, 0.36 * s), gearMat);
     head.position.y = 1.62 * s;
     head.userData = { bot: this, part: 'head' };
     g.add(head);
-    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.28 * s, 0.08 * s, 0.02 * s), visorMat);
-    visor.position.set(0, 1.64 * s, 0.2 * s);
+    const helm = new THREE.Mesh(new THREE.BoxGeometry(0.38 * s, 0.11 * s, 0.4 * s), bodyMat);
+    helm.position.y = 1.78 * s;
+    g.add(helm);
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.3 * s, 0.09 * s, 0.03 * s), visorMat);
+    visor.position.set(0, 1.64 * s, 0.19 * s);
     g.add(visor);
+    const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.26 * s, 0.1 * s, 0.07 * s), jointMat);
+    jaw.position.set(0, 1.49 * s, 0.17 * s);
+    g.add(jaw);
+    const podL = new THREE.Mesh(new THREE.BoxGeometry(0.06 * s, 0.1 * s, 0.14 * s), gearMat);
+    podL.position.set(0.2 * s, 1.62 * s, 0);
+    g.add(podL);
+    const podR = podL.clone(); podR.position.x = -0.2 * s; g.add(podR);
     // no per-bot light in bright map (perf) — visor material glows enough
     this.visorGlow = null;
 
@@ -114,32 +144,47 @@ export class Bot {
       antTip.position.set(0.14 * s, 2.05 * s, -0.05 * s); g.add(antTip);
     }
 
-    // ── arms ──
-    const armGeo = new THREE.BoxGeometry(0.15 * s, 0.58 * s, 0.15 * s);
+    // ── arms (segment + elbow joint + hand as children → follow walk swing) ──
+    const armGeo = new THREE.BoxGeometry(0.15 * s, 0.5 * s, 0.15 * s);
     const armL = new THREE.Mesh(armGeo, bodyMat);
-    armL.position.set(0.4 * s, 1.06 * s, 0);
+    armL.position.set(0.4 * s, 1.04 * s, 0);
     armL.userData = { bot: this, part: 'body' };
     g.add(armL);
     const armR = armL.clone();
     armR.position.x = -0.4 * s;
     armR.userData = { bot: this, part: 'body' };
     g.add(armR);
-    // shoulder pads
-    const padGeo = new THREE.BoxGeometry(0.2 * s, 0.12 * s, 0.2 * s);
+    const elbGeo = new THREE.SphereGeometry(0.09 * s, 8, 6);
+    const elbL = new THREE.Mesh(elbGeo, jointMat); elbL.position.set(0, -0.26 * s, 0); armL.add(elbL);
+    const elbR = new THREE.Mesh(elbGeo, jointMat); elbR.position.set(0, -0.26 * s, 0); armR.add(elbR);
+    const handGeo = new THREE.BoxGeometry(0.12 * s, 0.11 * s, 0.13 * s);
+    const handL = new THREE.Mesh(handGeo, jointMat); handL.position.set(0, -0.33 * s, 0.05 * s); armL.add(handL);
+    const handR = new THREE.Mesh(handGeo, jointMat); handR.position.set(0, -0.33 * s, 0.05 * s); armR.add(handR);
+    // shoulder pads w/ glow trim
+    const padGeo = new THREE.BoxGeometry(0.22 * s, 0.14 * s, 0.24 * s);
     const padL = new THREE.Mesh(padGeo, gearMat);
     padL.position.set(0.42 * s, 1.38 * s, 0); g.add(padL);
     const padR = padL.clone(); padR.position.x = -0.42 * s; g.add(padR);
+    const trimL = new THREE.Mesh(new THREE.BoxGeometry(0.2 * s, 0.02 * s, 0.22 * s), trimMat);
+    trimL.position.set(0.42 * s, 1.45 * s, 0); g.add(trimL);
+    const trimR = trimL.clone(); trimR.position.x = -0.42 * s; g.add(trimR);
 
-    // ── legs ──
-    const legGeo = new THREE.BoxGeometry(0.17 * s, 0.62 * s, 0.19 * s);
+    // ── legs (knee pads + boots as children → follow walk swing) ──
+    const legGeo = new THREE.BoxGeometry(0.17 * s, 0.56 * s, 0.19 * s);
     const legL = new THREE.Mesh(legGeo, bodyMat);
-    legL.position.set(0.16 * s, 0.32 * s, 0);
+    legL.position.set(0.16 * s, 0.36 * s, 0);
     legL.userData = { bot: this, part: 'body' };
     g.add(legL);
     const legR = legL.clone();
     legR.position.x = -0.16 * s;
     legR.userData = { bot: this, part: 'body' };
     g.add(legR);
+    const kneeGeo = new THREE.BoxGeometry(0.15 * s, 0.12 * s, 0.07 * s);
+    const kneeL = new THREE.Mesh(kneeGeo, gearMat); kneeL.position.set(0, -0.08 * s, 0.12 * s); legL.add(kneeL);
+    const kneeR = new THREE.Mesh(kneeGeo, gearMat); kneeR.position.set(0, -0.08 * s, 0.12 * s); legR.add(kneeR);
+    const bootGeo = new THREE.BoxGeometry(0.19 * s, 0.1 * s, 0.29 * s);
+    const bootL = new THREE.Mesh(bootGeo, jointMat); bootL.position.set(0, -0.3 * s, 0.05 * s); legL.add(bootL);
+    const bootR = new THREE.Mesh(bootGeo, jointMat); bootR.position.set(0, -0.3 * s, 0.05 * s); legR.add(bootR);
 
     // ── weapons ──
     if (t.attack === 'ranged') {
@@ -279,7 +324,7 @@ export class Bot {
     this.pos.x += this.vel.x * dt;
     this.pos.z += this.vel.z * dt;
     this._pushOut(world);
-    const lim = 40.5;
+    const lim = ARENA.half - 1.5;
     this.pos.x = Math.max(-lim, Math.min(lim, this.pos.x));
     this.pos.z = Math.max(-lim, Math.min(lim, this.pos.z));
 
@@ -421,10 +466,12 @@ export class BotManager {
 
   _spawnPos(playerPos) {
     const spots = [];
-    for (let i = 0; i < 12; i++) {
+    const maxR = ARENA.half - 6;
+    for (let i = 0; i < 14; i++) {
       const a = Math.random() * Math.PI * 2;
-      const r = 18 + Math.random() * 18;
+      const r = 18 + Math.random() * Math.max(8, maxR - 18);
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if (Math.hypot(x, z) > maxR) continue;
       if (Math.hypot(x - playerPos.x, z - playerPos.z) > 16) spots.push(new THREE.Vector3(x, 0, z));
     }
     if (!spots.length) return new THREE.Vector3(0, 0, -30);

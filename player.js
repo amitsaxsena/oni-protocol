@@ -1,8 +1,63 @@
 // ═══════════════════ PLAYER — FPS controller ═══════════════════
 import * as THREE from 'three';
+import { ARENA } from './world.js?v=9';
 
 const EYE = 1.62;
+const CROUCH_EYE = 1.05;
 const RADIUS = 0.42;
+
+// third-person player body (only visible when POV = TPP, F4 toggles)
+function buildBody() {
+  const g = new THREE.Group();
+  const suit = new THREE.MeshStandardMaterial({ color: 0x2e3a4a, roughness: 0.6, metalness: 0.35 });
+  const gear = new THREE.MeshStandardMaterial({ color: 0x171c24, roughness: 0.5, metalness: 0.6 });
+  const accent = new THREE.MeshBasicMaterial({ color: 0x37d6ff });
+  const metal = new THREE.MeshStandardMaterial({ color: 0x6a7280, roughness: 0.35, metalness: 0.85 });
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.66, 0.32), suit);
+  torso.position.y = 1.1; g.add(torso);
+  const vest = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.5, 0.07), gear);
+  vest.position.set(0, 1.12, 0.17); g.add(vest);
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.03, 0.02), accent);
+  strip.position.set(0, 1.26, 0.21); g.add(strip);
+  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.44, 0.16), gear);
+  pack.position.set(0, 1.14, -0.24); g.add(pack);
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.32, 0.34), gear);
+  head.position.y = 1.6; g.add(head);
+  const helmTop = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.1, 0.37), suit);
+  helmTop.position.y = 1.75; g.add(helmTop);
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.07, 0.03), accent);
+  visor.position.set(0, 1.62, 0.18); g.add(visor);
+
+  const armGeo = new THREE.BoxGeometry(0.14, 0.54, 0.14);
+  const armL = new THREE.Mesh(armGeo, suit); armL.position.set(0.37, 1.08, 0); g.add(armL);
+  const armR = new THREE.Mesh(armGeo, suit); armR.position.set(-0.37, 1.08, 0); g.add(armR);
+  const padGeo = new THREE.BoxGeometry(0.2, 0.12, 0.22);
+  const padL = new THREE.Mesh(padGeo, gear); padL.position.set(0.39, 1.38, 0); g.add(padL);
+  const padR = padL.clone(); padR.position.x = -0.39; g.add(padR);
+
+  const legGeo = new THREE.BoxGeometry(0.17, 0.58, 0.18);
+  const legL = new THREE.Mesh(legGeo, suit); legL.position.set(0.15, 0.34, 0); g.add(legL);
+  const legR = new THREE.Mesh(legGeo, suit); legR.position.set(-0.15, 0.34, 0); g.add(legR);
+  const bootGeo = new THREE.BoxGeometry(0.19, 0.1, 0.28);
+  const bootL = new THREE.Mesh(bootGeo, gear); bootL.position.set(0, -0.3, 0.05); legL.add(bootL);
+  const bootR = bootL.clone(); legR.add(bootR);
+
+  // rifle held forward
+  const gun = new THREE.Group();
+  const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.1, 0.55), metal);
+  gun.add(barrel);
+  const gm = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.08), gear);
+  gm.position.set(0, -0.11, -0.04); gun.add(gm);
+  const gglow = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.3), accent);
+  gglow.position.set(0, 0.02, 0.14); gun.add(gglow);
+  gun.position.set(0.26, 1.12, 0.36);
+  g.add(gun);
+
+  g.visible = false;
+  return { group: g, parts: { armL, armR, legL, legR } };
+}
 
 export class Player {
   constructor(camera, dom) {
@@ -25,6 +80,15 @@ export class Player {
     this.bobT = 0;
     this.landImpact = 0;
     this.recoilPitch = 0;
+
+    // stance & POV state
+    this.eyeH = EYE;
+    this.crouching = false;
+    this.sprinting = false;
+    this.thirdPerson = false;
+    this._animT = 0;
+    this._bodyScale = 1;
+    this.body = buildBody();
 
     this._bindInput();
   }
@@ -54,6 +118,10 @@ export class Player {
     this.yaw = Math.PI; this.pitch = 0;
     this.alive = true;
     this.dashCd = 0; this.dashTime = 0;
+    this.eyeH = EYE;
+    this.crouching = false;
+    this.sprinting = false;
+    this._bodyScale = 1;
   }
 
   damage(amount) {
@@ -98,6 +166,21 @@ export class Player {
   update(dt, colliders) {
     if (!this.alive) return;
 
+    // ── crouch (hold Shift) — smooth eye height, feet stay planted ──
+    this.crouching = !!(this.keys['ShiftLeft'] || this.keys['ShiftRight']);
+    const targetEye = this.crouching ? CROUCH_EYE : EYE;
+    const dEye = targetEye - this.eyeH;
+    if (Math.abs(dEye) > 0.0004) {
+      const step = Math.sign(dEye) * Math.min(Math.abs(dEye), dt * 4.2);
+      this.eyeH += step;
+      this.pos.y += step;
+    }
+
+    const dir = this._wishDir();
+    // ── sprint (hold Ctrl ya V; Ctrl+W Chrome me tab band kar deta hai) ──
+    this.sprinting = !!(this.keys['ControlLeft'] || this.keys['ControlRight'] || this.keys['KeyV'])
+      && !this.crouching && !!dir && this.onGround;
+
     // ── dash movement ──
     if (this.dashTime > 0) {
       this.dashTime -= dt;
@@ -105,8 +188,7 @@ export class Player {
       this.vel.z = this.dashDir.z * 26;
       this.vel.y = Math.max(this.vel.y, -2);
     } else {
-      const dir = this._wishDir();
-      const speed = 9.5;
+      const speed = this.crouching ? 5.0 : (this.sprinting ? 14.5 : 9.5);
       const accel = this.onGround ? 60 : 25;
       if (dir) {
         this.vel.x += dir.x * accel * dt;
@@ -128,7 +210,7 @@ export class Player {
 
     // ── integrate + collide (axis separated AABB vs AABB) ──
     const r = RADIUS;
-    const feet = () => this.pos.y - EYE;
+    const feet = () => this.pos.y - this.eyeH;
 
     // X axis
     this.pos.x += this.vel.x * dt;
@@ -140,9 +222,9 @@ export class Player {
     this.pos.y += this.vel.y * dt;
     const wasAir = !this.onGround;
     this.onGround = false;
-    if (this.pos.y - EYE <= 0) {
+    if (this.pos.y - this.eyeH <= 0) {
       if (wasAir && this.vel.y < -10) this.landImpact = 0.25;
-      this.pos.y = EYE;
+      this.pos.y = this.eyeH;
       this.vel.y = 0;
       this.onGround = true;
       this.jumps = 0;
@@ -153,8 +235,8 @@ export class Player {
         if (this.pos.x > b.min.x - r && this.pos.x < b.max.x + r &&
             this.pos.z > b.min.z - r && this.pos.z < b.max.z + r) {
           const top = b.max.y;
-          if (feet() <= top && feet() > top - 0.55 && this.pos.y - EYE - this.vel.y * dt >= top - 0.3) {
-            this.pos.y = top + EYE;
+          if (feet() <= top && feet() > top - 0.55 && this.pos.y - this.eyeH - this.vel.y * dt >= top - 0.3) {
+            this.pos.y = top + this.eyeH;
             this.vel.y = 0;
             this.onGround = true;
             this.jumps = 0;
@@ -167,9 +249,8 @@ export class Player {
       for (const b of colliders) {
         if (this.pos.x > b.min.x - r && this.pos.x < b.max.x + r &&
             this.pos.z > b.min.z - r && this.pos.z < b.max.z + r) {
-          if (this.pos.y + 0.25 > b.min.y && this.pos.y - EYE < b.min.y) {
-            this.pos.y = b.min.y - 0.25 + EYE * 0;
-            this.pos.y = b.min.y - 0.3;
+          if (this.pos.y + 0.25 > b.min.y && this.pos.y - this.eyeH < b.min.y) {
+            this.pos.y = b.min.y - 0.3 + this.eyeH;
             this.vel.y = 0;
           }
         }
@@ -177,9 +258,30 @@ export class Player {
     }
 
     // arena clamp
-    const lim = 40.4;
+    const lim = ARENA.half - 1.6;
     this.pos.x = Math.max(-lim, Math.min(lim, this.pos.x));
     this.pos.z = Math.max(-lim, Math.min(lim, this.pos.z));
+
+    // ── third-person body (F4) ──
+    const B = this.body;
+    B.group.visible = this.thirdPerson;
+    if (this.thirdPerson) {
+      B.group.position.set(this.pos.x, this.pos.y - this.eyeH, this.pos.z);
+      B.group.rotation.y = this.yaw + Math.PI;
+      this._animT += dt;
+      const spd = Math.hypot(this.vel.x, this.vel.z);
+      const moving = spd > 0.6 && this.onGround;
+      const cyc = this.sprinting ? 13 : 8.5;
+      const amp = moving ? Math.min(spd / 9.5, 1) * 0.75 : 0.05;
+      const sw = Math.sin(this._animT * cyc) * amp;
+      B.parts.legL.rotation.x = sw;
+      B.parts.legR.rotation.x = -sw;
+      B.parts.armL.rotation.x = -sw * 0.25;
+      B.parts.armR.rotation.x = sw * 0.25;
+      const scaleTarget = this.crouching ? 0.74 : 1;
+      this._bodyScale += (scaleTarget - this._bodyScale) * Math.min(1, dt * 10);
+      B.group.scale.y = this._bodyScale;
+    }
 
     // ── camera ──
     this.bobT += dt * (this.onGround ? Math.hypot(this.vel.x, this.vel.z) : 0);
@@ -196,6 +298,15 @@ export class Player {
     this.camera.rotation.order = 'YXZ';
     this.camera.rotation.y = this.yaw;
     this.camera.rotation.x = this.pitch + this.recoilPitch;
+
+    // ── third-person camera offset (F4 toggle) ──
+    if (this.thirdPerson) {
+      const fwx = -Math.sin(this.yaw), fwz = -Math.cos(this.yaw);
+      this.camera.position.x += -fwx * 3.1 + fwz * 0.7;
+      this.camera.position.z += -fwz * 3.1 - fwx * 0.7;
+      this.camera.position.y += 0.45;
+      if (this.camera.position.y < 0.4) this.camera.position.y = 0.4;
+    }
   }
 
   _collideAxis(axis, r, colliders, feet) {

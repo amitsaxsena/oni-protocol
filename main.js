@@ -1,12 +1,12 @@
 // ═══════════════════ ONI PROTOCOL — main game ═══════════════════
 import * as THREE from 'three';
-import { World } from './world.js';
-import { Player } from './player.js';
-import { WeaponSystem, WEAPONS, animateViewmodel } from './weapons.js';
-import { BotManager } from './bots.js?v=8';
-import { FXSystem } from './effects.js?v=8';
-import { initAudio, toggleAudio, sfx } from './audio.js';
-import { buildChineseArt } from './wallart.js?v=8';
+import { World } from './world.js?v=9';
+import { Player } from './player.js?v=9';
+import { WeaponSystem, WEAPONS, animateViewmodel } from './weapons.js?v=9';
+import { BotManager } from './bots.js?v=9';
+import { FXSystem } from './effects.js?v=9';
+import { initAudio, toggleAudio, startAmbient, sfx } from './audio.js?v=9';
+import { buildChineseArt } from './wallart.js?v=9';
 
 // ── renderer / scene ──
 const canvas = document.getElementById('game-canvas');
@@ -17,7 +17,7 @@ renderer.shadowMap.enabled = false;  // no object casts shadows → pass was pur
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87b5e0);
-scene.fog = new THREE.Fog(0xc8d4e8, 60, 180);
+scene.fog = new THREE.Fog(0xc8d4e8, 75, 230);
 
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 300);
 scene.add(camera);
@@ -45,6 +45,7 @@ const world = new World(scene);
 buildChineseArt(world);
 const fx = new FXSystem(scene);
 const player = new Player(camera, canvas);
+scene.add(player.body.group);
 const weapons = new WeaponSystem(camera);
 const bots = new BotManager(scene, world, fx, sfx, {
   onPlayerDamage: (dmg, pos) => damagePlayer(dmg, pos),
@@ -79,6 +80,7 @@ let combo = 0, comboTimer = 0;
 let shakeAmt = 0;
 let lastDamageT = -99;
 let autoReloadT = 0;
+let _stepAcc = 0, _wasCrouch = false, _prevLand = 0;
 
 // ═══════════════ HUD ═══════════════
 const $ = id => document.getElementById(id);
@@ -255,7 +257,9 @@ function fireShot(nowS) {
   hud.crosshair.classList.add('fire');
   setTimeout(() => hud.crosshair.classList.remove('fire'), 90);
 
-  const tip = weapons.gunTip;
+  const tip = player.thirdPerson
+    ? camera.position.clone().addScaledVector(camera.getWorldDirection(new THREE.Vector3()), 2.4)
+    : weapons.gunTip;
   camera.getWorldDirection(_dir);
   fx.muzzleFlash(tip, _dir.clone(), 0xffc66a, w.slot === 2 ? 1.6 : 1);
   player.recoilPitch += w.recoil;
@@ -469,13 +473,21 @@ document.addEventListener('keydown', e => {
   if (e.code === 'Digit2') { weapons.switchTo('shotgun'); sfx.weaponSwitch(); updateAmmo(); updateSlots(); }
   if (e.code === 'Digit3') { weapons.switchTo('katana'); sfx.weaponSwitch(); updateAmmo(); updateSlots(); }
   if (e.code === 'KeyQ') { weapons.switchTo('katana'); sfx.weaponSwitch(); updateAmmo(); updateSlots(); }
-  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+  if (e.code === 'KeyE') {
     if (state === 'playing' && player.tryDash()) {
       sfx.dash();
       hud.vDash.style.opacity = 1;
       setTimeout(() => hud.vDash.style.opacity = 0, 180);
     }
   }
+  if (e.code === 'F4') {
+    e.preventDefault();
+    player.thirdPerson = !player.thirdPerson;
+    sfx.pov();
+    showBanner(player.thirdPerson ? 'THIRD PERSON' : 'FIRST PERSON', 'POV切換');
+  }
+  // best-effort Ctrl+W rokne ki koshish (Firefox; Chrome me V use karo)
+  if (e.ctrlKey && e.code === 'KeyW') e.preventDefault();
   if (e.code === 'Space' && state === 'playing') { if (player.jump()) sfx.jump(); }
   if (e.code === 'KeyM') { const on = toggleAudio(); showBanner(on ? 'AUDIO ON' : 'AUDIO OFF', ''); }
   if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
@@ -503,6 +515,7 @@ document.addEventListener('pointerlockchange', () => {
 
 $('btn-start').addEventListener('click', () => {
   initAudio();
+  startAmbient();
   $('start-screen').classList.add('hidden');
   $('hud').style.display = 'block';
   state = 'playing';
@@ -543,6 +556,19 @@ function loop() {
 
   if (state === 'playing') {
     player.update(dt, world.colliders);
+
+    // stance + footsteps + landing sounds
+    if (player.crouching !== _wasCrouch) { sfx.stance(player.crouching); _wasCrouch = player.crouching; }
+    if (player.onGround) {
+      _stepAcc += Math.hypot(player.vel.x, player.vel.z) * dt;
+      const stride = player.crouching ? 1.8 : (player.sprinting ? 3.2 : 2.5);
+      if (_stepAcc > stride) {
+        _stepAcc = 0;
+        sfx.footstep(player.crouching ? 0.06 : (player.sprinting ? 0.2 : 0.13));
+      }
+    }
+    if (player.landImpact > 0.23 && _prevLand <= 0.23) sfx.land();
+    _prevLand = player.landImpact;
 
     // weapons tick
     weapons.tickReload(nS);
@@ -599,6 +625,7 @@ function loop() {
 
   // viewmodel + fov
   if (state === 'playing') {
+    weapons.vm.visible = !player.thirdPerson;   // TPP me viewmodel chhupo
     animateViewmodel(weapons, player, dt, isMoving(), 0, nS);
     // shotgun shell insert sounds mid-reload
     if (weapons.reloading && weapons.current === 'shotgun') {
@@ -608,7 +635,8 @@ function loop() {
     } else {
       weapons._lastShellP = 0;
     }
-    const targetFov = weapons.aiming && weapons.current !== 'katana' ? 55 : (player.dashTime > 0 ? 84 : 75);
+    const targetFov = weapons.aiming && weapons.current !== 'katana' ? 55
+      : (player.dashTime > 0 ? 84 : (player.sprinting ? 83 : 75));
     baseFov += (targetFov - baseFov) * Math.min(1, dt * 10);
     camera.fov = baseFov;
     camera.updateProjectionMatrix();

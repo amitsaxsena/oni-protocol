@@ -13,7 +13,14 @@ export function initAudio() {
 }
 
 export function setVolume(v) { if (master) master.gain.value = v; }
-export function toggleAudio() { enabled = !enabled; return enabled; }
+export function toggleAudio() {
+  enabled = !enabled;
+  if (ambientNodes) {
+    ambientNodes.gain.gain.value = enabled ? 0.03 : 0;
+    ambientNodes.lfo2Depth.gain.value = enabled ? 0.016 : 0;
+  }
+  return enabled;
+}
 
 function now() { return ctx.currentTime; }
 
@@ -59,6 +66,27 @@ function playTone({ f0 = 440, f1 = null, dur = 0.2, type = 'sine', vol = 0.3, de
   osc.start(t0); osc.stop(t0 + dur + 0.1);
 }
 
+let ambientNodes = null;
+// looping desert wind — slow filtered-noise sway (call after initAudio)
+export function startAmbient() {
+  if (!ctx || ambientNodes) return;
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuffer(4);
+  src.loop = true;
+  const filt = ctx.createBiquadFilter();
+  filt.type = 'bandpass'; filt.frequency.value = 420; filt.Q.value = 0.55;
+  const g = ctx.createGain(); g.gain.value = 0.03;
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 0.07;
+  const lfoG = ctx.createGain(); lfoG.gain.value = 170;
+  lfo.connect(lfoG); lfoG.connect(filt.frequency);
+  const lfo2 = ctx.createOscillator(); lfo2.frequency.value = 0.05;
+  const lfo2Depth = ctx.createGain(); lfo2Depth.gain.value = 0.016;
+  lfo2.connect(lfo2Depth); lfo2Depth.connect(g.gain);
+  src.connect(filt); filt.connect(g); g.connect(master);
+  src.start(); lfo.start(); lfo2.start();
+  ambientNodes = { src, lfo, lfo2, gain: g, lfo2Depth };
+}
+
 // ── weapon sounds (layered, punchy CS-style) ──
 export const sfx = {
   rifle() {
@@ -67,8 +95,10 @@ export const sfx = {
     playNoise({ dur: 0.14, freq: 900, q: 0.5, vol: 0.45, slideTo: 180, type: 'lowpass' });
     playTone({ f0: 190, f1: 50, dur: 0.11, type: 'sawtooth', vol: 0.32 });
     playNoise({ dur: 0.03, freq: 7000, q: 1, vol: 0.18 });
+    playTone({ f0: 3200, f1: 2400, dur: 0.04, type: 'triangle', vol: 0.07 });       // metallic ping
     // tail echo
     playNoise({ dur: 0.3, freq: 500, q: 0.4, vol: 0.1, slideTo: 120, type: 'lowpass', delay: 0.05 });
+    playNoise({ dur: 0.55, freq: 380, q: 0.3, vol: 0.07, slideTo: 90, type: 'lowpass', delay: 0.14 }); // distant slap-back
   },
   shotgun() {
     playNoise({ dur: 0.08, freq: 3800, q: 0.5, vol: 0.7, slideTo: 700 });
@@ -128,6 +158,26 @@ export const sfx = {
     playNoise({ dur: 0.25, freq: 1400, q: 0.8, type: 'bandpass', vol: 0.3, slideTo: 3000 });
   },
   jump() { playTone({ f0: 300, f1: 550, dur: 0.1, type: 'sine', vol: 0.12 }); },
+  // footsteps (sand/dirt) — vol varies with stance
+  footstep(vol = 0.14) {
+    playNoise({ dur: 0.06, freq: 300 + Math.random() * 180, q: 0.7, type: 'lowpass', vol });
+    playNoise({ dur: 0.035, freq: 2200 + Math.random() * 900, q: 1.1, vol: vol * 0.55 });
+  },
+  land() {
+    playNoise({ dur: 0.1, freq: 260, q: 0.6, type: 'lowpass', vol: 0.3 });
+    playTone({ f0: 140, f1: 60, dur: 0.1, type: 'sine', vol: 0.18 });
+    playNoise({ dur: 0.05, freq: 1800, q: 1, vol: 0.1 });
+  },
+  // crouch / stand gear rustle
+  stance(crouch) {
+    playNoise({ dur: 0.16, freq: crouch ? 2600 : 2000, q: 0.8, type: 'bandpass', vol: 0.12, slideTo: crouch ? 1200 : 3200 });
+    playTone({ f0: crouch ? 240 : 320, f1: crouch ? 160 : 460, dur: 0.06, type: 'square', vol: 0.05 });
+  },
+  // F4 POV switch blip
+  pov() {
+    playTone({ f0: 700, f1: 1400, dur: 0.09, type: 'square', vol: 0.12 });
+    playTone({ f0: 1400, f1: 900, dur: 0.08, type: 'sine', vol: 0.1, delay: 0.09 });
+  },
   hurt() {
     playTone({ f0: 220, f1: 90, dur: 0.2, type: 'sawtooth', vol: 0.3 });
     playNoise({ dur: 0.15, freq: 600, q: 1, vol: 0.2 });
@@ -144,6 +194,12 @@ export const sfx = {
   botShot() {
     playNoise({ dur: 0.12, freq: 1600, q: 0.8, vol: 0.22, slideTo: 200 });
     playTone({ f0: 500, f1: 150, dur: 0.1, type: 'square', vol: 0.1 });
+    if (Math.random() < 0.3) sfx.botAlert();   // robotic chirp — targeting chatter
+  },
+  // robotic "target acquired" chirp
+  botAlert() {
+    playTone({ f0: 900, f1: 1600, dur: 0.06, type: 'square', vol: 0.07 });
+    playTone({ f0: 1600, f1: 1100, dur: 0.07, type: 'square', vol: 0.06, delay: 0.07 });
   },
   botSpawn() {
     playTone({ f0: 80, f1: 400, dur: 0.4, type: 'sawtooth', vol: 0.16 });

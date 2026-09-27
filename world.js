@@ -1,7 +1,7 @@
 // ═══════════ WORLD v4 — high-detail textured desert town ═══════════
 import * as THREE from 'three';
 
-export const ARENA = { half: 42 };
+export const ARENA = { half: 52 };
 
 // ── texture kit: 512px + bump maps + weathering ──
 function canvasOf(w, h, fn) {
@@ -402,9 +402,9 @@ export class World {
     this.group.add(floor);
     this.solidMeshes.push(floor);
 
-    // dirt roads
+    // dirt roads (span the full arena)
     const road = new THREE.Mesh(
-      new THREE.PlaneGeometry(84, 6),
+      new THREE.PlaneGeometry(ARENA.half * 2, 6),
       new THREE.MeshStandardMaterial({ color: 0xa08050, roughness: 1 })
     );
     road.rotation.x = -Math.PI / 2;
@@ -427,7 +427,7 @@ export class World {
         new THREE.DodecahedronGeometry(0.1 + Math.random() * 0.16, 0),
         new THREE.MeshStandardMaterial({ color: 0x9a8a6e, roughness: 1 })
       );
-      st.position.set((Math.random() - .5) * 76, 0.06, (Math.random() - .5) * 76);
+      st.position.set((Math.random() - .5) * (ARENA.half * 2 - 8), 0.06, (Math.random() - .5) * (ARENA.half * 2 - 8));
       st.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
       this.group.add(st);
     }
@@ -571,15 +571,28 @@ export class World {
     mkBuilding(30, 18, 12, 7, 12, 'brick');
     mkBuilding(-16, 34, 14, 6, 8, 'brick');
     mkBuilding(16, 34, 14, 7, 8, 'plaster');
+
+    // outer ring (expanded arena)
+    mkBuilding(-44, -44, 12, 6, 10, 'plaster');
+    mkBuilding(44, -44, 12, 7, 10, 'brick');
+    mkBuilding(-44, 44, 12, 7, 10, 'brick');
+    mkBuilding(44, 44, 12, 6, 10, 'plaster');
+    mkBuilding(-46, 4, 10, 6, 12, 'brick');
+    mkBuilding(46, 4, 10, 7, 12, 'plaster');
+    mkBuilding(-20, -46, 12, 6, 8, 'brick');
+    mkBuilding(20, 46, 12, 6, 8, 'plaster');
   }
 
   buildCrates() {
     const wood = makeWood();
     const defs = [
       [-10, -8, 0], [-9, -10.4, 0], [10, -8, 0], [-2, 14, 0.5], [2.2, 14, 0],
-      [-22, 6, 0.3], [22, 6, 0], [-14, 22, 0], [14, 22, 0.2], [0, -20, 0],
+      [-22, 6, 0.3], [22, 6, 0],      [-14, 22, 0], [14, 22, 0.2], [0, -20, 0],
       [-4, -20, 0], [4, -20, 0], [26, -18, 0.4], [-26, -18, 0],
       [8, 30, 0], [-8, 30, 0], [30, 28, 0], [-30, 28, 0],
+      // outer ring
+      [-40, 36, 0], [40, -36, 0.3], [-48, -30, 0], [48, 30, 0],
+      [-30, 46, 0], [30, -46, 0], [-48, 30, 0], [48, -30, 0],
     ];
     defs.forEach(([x, z, rot]) => {
       const map = wood.map.clone(); map.needsUpdate = true;
@@ -627,6 +640,9 @@ export class World {
     const rows = [
       [-16, -16, 0, 6], [16, -16, 0, 6], [-6, 8, Math.PI / 2, 5], [6, 8, Math.PI / 2, 5],
       [0, 24, 0, 7], [-24, 14, Math.PI / 2, 4], [24, 14, Math.PI / 2, 4],
+      // outer ring
+      [-40, 12, Math.PI / 2, 5], [40, -12, Math.PI / 2, 5],
+      [-10, -44, 0, 5], [10, 44, 0, 5],
     ];
     rows.forEach(([x, z, rot, n]) => {
       const g = new THREE.Group();
@@ -659,6 +675,8 @@ export class World {
     const positions = [
       [-12, -4], [12, -4], [-3, 20], [3, 20], [-28, -22], [28, -22],
       [18, 16], [-18, 16], [0, -2], [22, 30], [-22, 30],
+      // outer ring
+      [36, 36], [-36, -36], [-48, 16], [48, -16], [6, -38], [-6, 38],
     ];
     const drumGeo = new THREE.CylinderGeometry(0.42, 0.42, 1.1, 12);
     positions.forEach(([x, z]) => {
@@ -692,6 +710,10 @@ export class World {
       [-22, -6, 1, 8, 2.8, 'brick'], [22, -6, 1, 8, 2.8, 'brick'],
       [-8, 26, 8, 1, 2.4, 'concrete'], [8, 26, 8, 1, 2.4, 'concrete'],
       [-34, 4, 1, 7, 2.8, 'brick'], [34, 4, 1, 7, 2.8, 'brick'],
+      // outer ring cover
+      [-40, -24, 8, 1, 2.6, 'brick'], [40, 24, 8, 1, 2.6, 'brick'],
+      [-24, 44, 1, 8, 2.6, 'concrete'], [24, -44, 1, 8, 2.6, 'concrete'],
+      [0, 46, 9, 1, 2.4, 'concrete'], [0, -44, 9, 1, 2.4, 'brick'],
       [0, 36, 10, 1, 2.4, 'concrete'],
       [-18, 12, 1, 6, 2.4, 'brick'], [18, 12, 1, 6, 2.4, 'brick'],
     ];
@@ -726,10 +748,10 @@ export class World {
       ['招', '#8e1d16'], ['鏢', '#2a6e2a'],
     ];
     const spots = [
-      { x: -20.5, y: 2.2, z: -41.4, ry: 0 }, { x: 8, y: 3.4, z: -41.4, ry: 0 },
-      { x: 22, y: 2.6, z: -41.4, ry: 0 }, { x: -41.4, y: 2.8, z: 16, ry: Math.PI / 2 },
-      { x: 41.4, y: 2.4, z: -2, ry: -Math.PI / 2 }, { x: -41.4, y: 3.6, z: -8, ry: Math.PI / 2 },
-      { x: 41.4, y: 3.2, z: 18, ry: -Math.PI / 2 }, { x: -34.4, y: 2.6, z: -4, ry: Math.PI / 2 },
+      { x: -20.5, y: 2.2, z: -51.4, ry: 0 }, { x: 8, y: 3.4, z: -51.4, ry: 0 },
+      { x: 22, y: 2.6, z: -51.4, ry: 0 }, { x: -51.4, y: 2.8, z: 16, ry: Math.PI / 2 },
+      { x: 51.4, y: 2.4, z: -2, ry: -Math.PI / 2 }, { x: -51.4, y: 3.6, z: -8, ry: Math.PI / 2 },
+      { x: 51.4, y: 3.2, z: 18, ry: -Math.PI / 2 }, { x: -34.4, y: 2.6, z: -4, ry: Math.PI / 2 },
       { x: 0, y: 2.4, z: -11.4, ry: 0 }, { x: 18.6, y: 3.2, z: 12, ry: -Math.PI / 2 },
     ];
     spots.forEach(({ x, y, z, ry }, i) => {
@@ -796,11 +818,12 @@ export class World {
 
   buildDustMotes() {
     const N = 250;
+    const R = ARENA.half - 4;
     const pos = new Float32Array(N * 3);
     for (let i = 0; i < N; i++) {
-      pos[i * 3] = (Math.random() - .5) * 80;
+      pos[i * 3] = (Math.random() - .5) * R * 2;
       pos[i * 3 + 1] = 0.3 + Math.random() * 6;
-      pos[i * 3 + 2] = (Math.random() - .5) * 80;
+      pos[i * 3 + 2] = (Math.random() - .5) * R * 2;
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -836,11 +859,12 @@ export class World {
       if (c.position.x > 150) c.position.x = -150;
     });
     if (this.dustMotes) {
+      const R = ARENA.half - 4;
       const p = this.dustMotes.geometry.attributes.position;
       for (let i = 0; i < p.count; i++) {
         let x = p.getX(i) + dt * 0.6;
         let y = p.getY(i) + Math.sin(t + i) * dt * 0.15;
-        if (x > 42) x = -42;
+        if (x > R) x = -R;
         p.setX(i, x);
         p.setY(i, y);
       }
