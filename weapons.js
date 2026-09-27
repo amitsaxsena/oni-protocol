@@ -286,35 +286,64 @@ export class WeaponSystem {
   spendAmmo() { if (this.state.mag !== Infinity) this.state.mag--; }
 }
 
-// ── viewmodel animation incl. realistic reload sequence ──
+// ── viewmodel animation: sway + layered bob + sprint/crouch/air poses + realistic reload ──
 export function animateViewmodel(ws, player, dt, moving, firingKick, now) {
   const vm = ws.vm;
   const w = ws.current;
 
-  const baseX = ws.aiming ? 0 : 0.17;
-  const baseY = ws.aiming ? -0.105 : -0.135;
-  const baseZ = ws.aiming ? -0.2 : -0.3;
+  const aiming = ws.aiming && w !== 'katana' && !player.thirdPerson;
+  const sprinting = player.sprinting && !aiming;
+  const crouching = player.crouching;
+  const airborne = !player.onGround;
 
   vm.userData.drawT = Math.max(0, (vm.userData.drawT || 0) - dt);
   const draw = vm.userData.drawT / 0.25;
 
-  const targetPos = new THREE.Vector3(baseX, baseY, baseZ);
-  const bob = Math.sin(player.bobT * 1.9) * (moving ? 0.011 : 0.002);
-  targetPos.y += bob;
-  targetPos.x += Math.cos(player.bobT * 0.95) * (moving ? 0.008 : 0.001);
+  // ── base pose: hip / aim / sprint / crouch / air ──
+  let baseX = 0.17, baseY = -0.135, baseZ = -0.3;
+  let rotX = 0, rotY = 0, rotZ = 0.015;
+  if (w === 'katana') { baseX = 0.2; baseY = -0.14; rotZ = 0.1; }
+  if (aiming) { baseX = 0; baseY = -0.105; baseZ = -0.2; rotZ = 0; }
+  else if (sprinting) { baseX = 0.23; baseY = -0.175; baseZ = -0.22; rotX = 0.3; rotY = 0.42; rotZ = -0.18; }
+  else if (crouching) { baseY = -0.115; baseZ = -0.26; }
+  if (airborne) { baseY += 0.025; rotX -= 0.14; rotZ += 0.05; }
+
+  // ── layered bob — figure-8 jo player ke head-bob se match karta hai ──
+  const bobK = moving && player.onGround ? 1 : 0;
+  const bobAmp = sprinting ? 1.45 : aiming ? 0.3 : 1;
+  const str = 3.1;
+  const bobY = Math.sin(player.bobT * str) * 0.013 * bobAmp * bobK;
+  const bobX = Math.cos(player.bobT * str * 0.5) * 0.011 * bobAmp * bobK;
+  const stepDip = Math.max(0, Math.sin(player.bobT * str + 0.9)) * 0.009 * bobK * (sprinting ? 1.5 : 1);
+
+  // ── sway — mouse ghumao to hathiyaar thoda peeche drag hota hai (inertia) ──
+  const adsK = aiming ? 0.3 : 1;
+  const swx = THREE.MathUtils.clamp(player.swayX * 0.00018, -0.04, 0.04) * adsK;
+  const swy = THREE.MathUtils.clamp(player.swayY * 0.00016, -0.03, 0.03) * adsK;
+  // halka idle float (saans)
+  const idleX = Math.sin(now * 1.3) * 0.0016 * adsK;
+  const idleY = Math.cos(now * 1.7) * 0.0013 * adsK;
+
+  const targetPos = new THREE.Vector3(
+    baseX - swx + bobX + idleX,
+    baseY + swy + bobY + idleY - player.landDip * 0.5,
+    baseZ
+  );
 
   vm.position.lerp(targetPos, 1 - Math.pow(0.0001, dt));
-  vm.position.y -= draw * 0.3;
+  vm.position.y -= draw * 0.3 + stepDip;
 
-  // recoil kick
+  // recoil kick — z me dhakka + muzzle up
   vm.userData.kick = Math.max(0, (vm.userData.kick || 0) - dt * 10);
   const kick = vm.userData.kick + firingKick;
-  vm.position.z += kick * 0.06;
-  vm.rotation.x = kick * 0.1 + draw * 0.6;
+
+  let rX = rotX + kick * 0.1 + draw * 0.6 + swy * 1.6;
+  let rY = rotY + swx * 1.2;
+  let rZ = rotZ + kick * 0.02;
 
   // weapon-specific anims
   const model = ws.models[ws.current];
-  if (!model) return;
+  if (!model) { vm.rotation.set(rX, rY, rZ); return; }
 
   if (ws.reloading && w !== 'katana') {
     const p = ws.getReloadProgress(now);
@@ -328,30 +357,26 @@ export function animateViewmodel(ws, player, dt, moving, firingKick, now) {
       const k = (p - 0.3) / 0.3;
       tiltZ = 0.5 - k * 0.35; tiltY = 0.2; dropY = 0.06;
       if (ws.rifleMag) ws.rifleMag.position.y = -0.075 - 0.12 + (0.12 * Math.min(1, k * 1.4));
-      // shotgun pump pull
       if (ws.sgPump) ws.sgPump.position.z = -0.42 + Math.sin(k * Math.PI) * 0.12;
     } else if (p < 0.85) {
       const k = (p - 0.6) / 0.25;
       tiltZ = 0.15 - k * 0.15; tiltY = 0.2 - k * 0.2; dropY = 0.06 - k * 0.06;
-      // charging handle pull
       if (ws.rifleCharging) ws.rifleCharging.position.z = -0.05 + Math.sin(k * Math.PI) * 0.07;
-      vm.rotation.x += Math.sin(k * Math.PI) * 0.12;
+      rX += Math.sin(k * Math.PI) * 0.12;
     } else {
       const k = (p - 0.85) / 0.15;
-      tiltZ = 0; tiltY = 0; dropY = 0;
       if (ws.rifleMag) ws.rifleMag.position.y = -0.075;
       if (ws.sgPump) ws.sgPump.position.z = -0.42;
       if (ws.rifleCharging) ws.rifleCharging.position.z = -0.05;
-      vm.rotation.x += (1 - k) * 0.05;
+      rX += (1 - k) * 0.05;
     }
-    vm.rotation.z += tiltZ;
-    vm.rotation.y = tiltY;
+    rZ += tiltZ; rY += tiltY;
     vm.position.y -= dropY;
   } else {
-    vm.rotation.z = w === 'katana' ? 0.1 + kick * 0.03 : 0.015 + kick * 0.03;
-    vm.rotation.y = 0;
     if (ws.rifleMag) ws.rifleMag.position.y = -0.075;
     if (ws.sgPump) ws.sgPump.position.z = -0.42;
     if (ws.rifleCharging) ws.rifleCharging.position.z = -0.05;
   }
+
+  vm.rotation.set(rX, rY, rZ);
 }

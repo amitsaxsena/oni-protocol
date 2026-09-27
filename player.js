@@ -29,6 +29,28 @@ function buildBody() {
   hips.position.y = 0.68; hips.scale.set(1.1, 0.75, 0.9); g.add(hips);
   const pack = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.36, 0.15), gear);
   pack.position.set(0, 1.18, -0.24); g.add(pack);
+  const bedroll = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.3, 8), dark);
+  bedroll.rotation.z = Math.PI / 2; bedroll.position.set(0, 1.4, -0.26); g.add(bedroll);
+  // chest rig: 3 mag pouches + radio + dump pouch
+  for (let i = 0; i < 3; i++) {
+    const p = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.11, 0.05), gear);
+    p.position.set(-0.07 + i * 0.07, 1.2, 0.205); p.rotation.x = -0.12; g.add(p);
+    const flap = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.03, 0.055), dark);
+    flap.position.set(-0.07 + i * 0.07, 1.255, 0.205); g.add(flap);
+  }
+  const radio = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.09, 0.035), dark);
+  radio.position.set(0.14, 1.06, 0.2); g.add(radio);
+  const dump = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.08, 0.04), gear);
+  dump.position.set(-0.16, 1.0, 0.12); g.add(dump);
+  // thigh holster + pouch
+  const holster = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.16, 0.06), dark);
+  holster.position.set(-0.17, 0.74, 0.14); g.add(holster);
+  const thighP = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.1, 0.05), gear);
+  thighP.position.set(0.17, 0.76, 0.13); g.add(thighP);
+  // shoulder straps
+  const strapGeo = new THREE.BoxGeometry(0.045, 0.34, 0.02);
+  const strapL = new THREE.Mesh(strapGeo, dark); strapL.position.set(0.11, 1.28, 0.16); strapL.rotation.z = 0.18; g.add(strapL);
+  const strapR = new THREE.Mesh(strapGeo, dark); strapR.position.set(-0.11, 1.28, 0.16); strapR.rotation.z = -0.18; g.add(strapR);
 
   // head: face + balaclava + helmet + goggles
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 12), skin);
@@ -41,6 +63,12 @@ function buildBody() {
   gogFrame.position.set(0, 1.64, 0.105); g.add(gogFrame);
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.042, 0.02), accent);
   visor.position.set(0, 1.64, 0.133); g.add(visor);
+  // headset: ear cups + band
+  const cupGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.03, 10);
+  const cupL = new THREE.Mesh(cupGeo, dark); cupL.rotation.z = Math.PI / 2; cupL.position.set(0.135, 1.6, 0.01); g.add(cupL);
+  const cupR = cupL.clone(); cupR.position.x = -0.135; g.add(cupR);
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.012, 6, 14, Math.PI), gear);
+  band.position.y = 1.6; band.rotation.y = Math.PI / 2; g.add(band);
 
   // arms — pivot at shoulder, held on the rifle
   const armGeo = new THREE.CapsuleGeometry(0.055, 0.3, 4, 8);
@@ -59,9 +87,20 @@ function buildBody() {
   legL.position.set(0.115, 0.62, 0); g.add(legL);
   const legR = new THREE.Mesh(legGeo, cloth);
   legR.position.set(-0.115, 0.62, 0); g.add(legR);
-  const bootL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.26), dark);
-  bootL.position.set(0, -0.55, 0.05); legL.add(bootL);
-  const bootR = bootL.clone(); legR.add(bootR);
+  // kneepads
+  const kneeGeo = new THREE.SphereGeometry(0.075, 8, 6);
+  const kneeL = new THREE.Mesh(kneeGeo, gear); kneeL.position.set(0, -0.28, 0.045); kneeL.scale.set(1, 0.8, 0.6); legL.add(kneeL);
+  const kneeR = kneeL.clone(); legR.add(kneeR);
+  // boots: upper + rubber sole
+  const mkBoot = () => {
+    const b = new THREE.Group();
+    const upper = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.12, 0.25), dark);
+    upper.position.set(0, -0.52, 0.03); b.add(upper);
+    const sole = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.035, 0.28), gear);
+    sole.position.set(0, -0.585, 0.04); b.add(sole);
+    return b;
+  };
+  legL.add(mkBoot()); legR.add(mkBoot());
 
   // rifle held across the chest, pointing forward
   const gun = new THREE.Group();
@@ -75,7 +114,7 @@ function buildBody() {
   g.add(gun);
 
   g.visible = false;
-  return { group: g, parts: { armL, armR, legL, legR } };
+  return { group: g, parts: { armL, armR, legL, legR, torso, head } };
 }
 
 export class Player {
@@ -96,9 +135,17 @@ export class Player {
     this.alive = true;
     this.keys = {};
     this.sensitivity = 0.0021;
+    // movement feel + camera state
     this.bobT = 0;
+    this.breatheT = 0;
     this.landImpact = 0;
+    this.landDip = 0; this.landDipVel = 0; this.landRoll = 0;
+    this.strafeLean = 0;
+    this.swayX = 0; this.swayY = 0;         // smoothed mouse-look offsets (camera + weapon sway)
+    this.lookVelX = 0; this.lookVelY = 0;   // raw look velocity per frame
     this.recoilPitch = 0;
+    this.recoilYaw = 0;
+    this._lastYaw = this.yaw;
 
     // stance & POV state
     this.eyeH = EYE;
@@ -124,6 +171,9 @@ export class Player {
       this.yaw -= e.movementX * this.sensitivity;
       this.pitch -= e.movementY * this.sensitivity;
       this.pitch = Math.max(-Math.PI / 2 + 0.02, Math.min(Math.PI / 2 - 0.02, this.pitch));
+      // look velocity accumulate → weapon/camera sway ka source
+      this.lookVelX += e.movementX;
+      this.lookVelY += e.movementY;
     });
   }
 
@@ -141,6 +191,9 @@ export class Player {
     this.crouching = false;
     this.sprinting = false;
     this._bodyScale = 1;
+    this.recoilPitch = 0; this.recoilYaw = 0;
+    this.landDip = 0; this.landDipVel = 0; this.landRoll = 0;
+    this.strafeLean = 0;
   }
 
   damage(amount) {
@@ -207,14 +260,14 @@ export class Player {
       this.vel.z = this.dashDir.z * 26;
       this.vel.y = Math.max(this.vel.y, -2);
     } else {
-      const speed = this.crouching ? 5.0 : (this.sprinting ? 14.5 : 9.5);
-      const accel = this.onGround ? 60 : 25;
+      const speed = (this.crouching ? 4.4 : (this.sprinting ? 15 : 9.8)) * (this.aimSlow ? 0.7 : 1);
+      const accel = this.onGround ? 72 : 34;
       if (dir) {
         this.vel.x += dir.x * accel * dt;
         this.vel.z += dir.z * accel * dt;
       }
       // friction
-      const fr = this.onGround ? 10 : 1.2;
+      const fr = this.onGround ? 9 : 1.6;
       this.vel.x -= this.vel.x * fr * dt;
       this.vel.z -= this.vel.z * fr * dt;
       const hs = Math.hypot(this.vel.x, this.vel.z);
@@ -242,7 +295,11 @@ export class Player {
     const wasAir = !this.onGround;
     this.onGround = false;
     if (this.pos.y - this.eyeH <= 0) {
-      if (wasAir && this.vel.y < -10) this.landImpact = 0.25;
+      if (wasAir && this.vel.y < -8) {
+        const f = Math.min(1, (-this.vel.y - 8) / 12);        // girene ki speed ke hisaab se
+        this.landImpact = 0.18 + f * 0.22;
+        this.landRoll = (Math.random() - 0.5) * 0.06 * f;     // jor ka jhatka — side roll
+      }
       this.pos.y = this.eyeH;
       this.vel.y = 0;
       this.onGround = true;
@@ -290,33 +347,85 @@ export class Player {
       this._animT += dt;
       const spd = Math.hypot(this.vel.x, this.vel.z);
       const moving = spd > 0.6 && this.onGround;
-      const cyc = this.sprinting ? 13 : 8.5;
-      const amp = moving ? Math.min(spd / 9.5, 1) * 0.75 : 0.05;
+      const cyc = this.sprinting ? 12.5 : 8.5;
+      const amp = moving ? Math.min(spd / 9.8, 1) * 0.8 : 0.04;
       const sw = Math.sin(this._animT * cyc) * amp;
+      const sw2 = Math.cos(this._animT * cyc) * amp;          // stride bounce + torso roll
       B.parts.legL.rotation.x = sw;
       B.parts.legR.rotation.x = -sw;
-      B.parts.armL.rotation.x = -0.85 - sw * 0.2;
-      B.parts.armR.rotation.x = -0.35 + sw * 0.2;
+      B.parts.legL.position.y = 0.62 + Math.max(0, -sw) * 0.09;  // step lift
+      B.parts.legR.position.y = 0.62 + Math.max(0, sw) * 0.09;
+      B.parts.armL.rotation.x = -0.85 - sw * 0.22;
+      B.parts.armR.rotation.x = -0.35 + sw * 0.22;
+      B.parts.armL.rotation.z = -0.2 + sw2 * 0.05;
+      B.parts.armR.rotation.z = 0.2 - sw2 * 0.05;
+      B.parts.torso.rotation.x = moving ? 0.06 + amp * 0.12 : 0.02;  // aage jhukav
+      B.parts.torso.rotation.z = sw2 * 0.06;
+      B.parts.torso.position.y = 1.12 + Math.abs(sw) * 0.035;        // body bob
+      B.parts.head.rotation.x = -0.05 - this.pitch * 0.55;           // jaha dekh raha hai waha sar
+      B.parts.head.rotation.y = Math.sin(this._animT * cyc * 0.5) * 0.05;
       const scaleTarget = this.crouching ? 0.74 : 1;
       this._bodyScale += (scaleTarget - this._bodyScale) * Math.min(1, dt * 10);
       B.group.scale.y = this._bodyScale;
     }
 
-    // ── camera ──
-    this.bobT += dt * (this.onGround ? Math.hypot(this.vel.x, this.vel.z) : 0);
-    const bobY = Math.sin(this.bobT * 1.9) * 0.045 * Math.min(1, Math.hypot(this.vel.x, this.vel.z) / 9);
-    const bobX = Math.cos(this.bobT * 0.95) * 0.03 * Math.min(1, Math.hypot(this.vel.x, this.vel.z) / 9);
-    this.landImpact = Math.max(0, this.landImpact - dt * 1.4);
+    // ── camera feel: figure-8 bob + breathing + lean + landing spring + sway ──
+    const hs = Math.hypot(this.vel.x, this.vel.z);
+    const moveK = Math.min(1, hs / 9.8);
+    const stride = this.crouching ? 2.9 : (this.sprinting ? 3.4 : 3.1);
+    if (this.onGround) this.bobT += dt * Math.min(hs, 16);
+    const bobAmp = (this.sprinting ? 0.03 : this.crouching ? 0.017 : 0.024) * moveK;
+    const bobY = Math.sin(this.bobT * stride) * bobAmp;
+    const bobX = Math.cos(this.bobT * stride * 0.5) * bobAmp * 0.9;
+
+    // breathing — idle me saans ka halka uthan
+    this.breatheT += dt;
+    const breathe = Math.sin(this.breatheT * 1.7) * (moveK > 0.25 ? 0.0012 : 0.0045);
+
+    // landing spring — dip ho kar halka bounce ke saath wapas
+    this.landImpact = Math.max(0, this.landImpact - dt * 1.6);
+    if (this.onGround) {
+      this.landDipVel += (-this.landDip * 140 - this.landDipVel * 13) * dt;
+      this.landDip += this.landDipVel * dt;
+      this.landDipVel += this.landImpact * 12;    // landing jhatka — niche dip
+      this.landRoll *= Math.pow(0.02, dt);
+    } else {
+      this.landDip *= Math.pow(0.05, dt);
+      this.landDipVel = 0;
+    }
+    this.landDip = Math.max(-0.04, Math.min(0.22, this.landDip));
+
+    // mouse-look sway (smoothed) — camera + viewmodel dono istemal karte hain
+    const swK = Math.min(1, dt * 11);
+    this.swayX += (this.lookVelX - this.swayX) * swK;
+    this.swayY += (this.lookVelY - this.swayY) * swK;
+    this.lookVelX = 0; this.lookVelY = 0;
+
+    // strafe/turn lean — sar halka andar jhukta hai
+    const strafeIn = (this.keys['KeyA'] ? 1 : 0) - (this.keys['KeyD'] ? 1 : 0);
+    let yawD = this.yaw - this._lastYaw;
+    if (yawD > Math.PI) yawD -= Math.PI * 2;
+    if (yawD < -Math.PI) yawD += Math.PI * 2;
+    this._lastYaw = this.yaw;
+    const leanT = strafeIn * 0.045 + THREE.MathUtils.clamp(yawD * 26, -0.03, 0.03);
+    this.strafeLean += (leanT - this.strafeLean) * Math.min(1, dt * 7);
+
+    const sprintTilt = this.sprinting ? 0.02 : 0;
+    const sprintRoll = this.sprinting ? Math.sin(this.bobT * stride) * 0.009 * moveK : 0;
+
+    // recoil recovery — pehle fast, phir smooth tail
+    this.recoilPitch = Math.max(0, this.recoilPitch - dt * (2.2 + this.recoilPitch * 26));
+    this.recoilYaw *= Math.pow(0.0008, dt);
 
     this.camera.position.set(
       this.pos.x + bobX * Math.cos(this.yaw),
-      this.pos.y + bobY - this.landImpact * 0.5,
+      this.pos.y + bobY + breathe - this.landDip - this.landImpact * 0.2,
       this.pos.z + bobX * Math.sin(this.yaw)
     );
-    this.recoilPitch = Math.max(0, this.recoilPitch - dt * 3.5);
     this.camera.rotation.order = 'YXZ';
-    this.camera.rotation.y = this.yaw;
-    this.camera.rotation.x = this.pitch + this.recoilPitch;
+    this.camera.rotation.y = this.yaw + this.recoilYaw + this.swayX * 0.00018;
+    this.camera.rotation.x = this.pitch + this.recoilPitch + this.swayY * 0.00012 + sprintTilt + Math.abs(bobY) * 0.06;
+    this.camera.rotation.z = this.strafeLean + sprintRoll + this.landRoll + this.swayX * 0.0001;
 
     // ── third-person camera offset (F4 toggle) ──
     if (this.thirdPerson) {

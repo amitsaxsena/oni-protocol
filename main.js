@@ -1,8 +1,8 @@
 // ═══════════════════ ONI PROTOCOL — main game ═══════════════════
 import * as THREE from 'three';
 import { World } from './world.js?v=9';
-import { Player } from './player.js?v=10';
-import { WeaponSystem, WEAPONS, animateViewmodel } from './weapons.js?v=10';
+import { Player } from './player.js?v=11';
+import { WeaponSystem, WEAPONS, animateViewmodel } from './weapons.js?v=11';
 import { BotManager } from './bots.js?v=10';
 import { FXSystem } from './effects.js?v=9';
 import { initAudio, toggleAudio, startAmbient, sfx } from './audio.js?v=9';
@@ -77,7 +77,8 @@ let intermissionT = 0;
 let score = 0, kills = 0;
 let shotsFired = 0, shotsHit = 0;
 let combo = 0, comboTimer = 0;
-let shakeAmt = 0;
+let shakeAmt = 0, shakePhase = 0;
+let recoilHeat = 0;          // lambi burst ka accumulated kick
 let lastDamageT = -99;
 let autoReloadT = 0;
 let _stepAcc = 0, _wasCrouch = false, _prevLand = 0;
@@ -197,6 +198,26 @@ function showCombo() {
 
 function shake(a) { shakeAmt = Math.min(1.2, shakeAmt + a); }
 
+// per-weapon recoil pattern: vertical kick + burst heat + controlled horizontal sway
+function applyRecoil(w) {
+  recoilHeat = Math.min(1, recoilHeat + 0.16);
+  const heatK = recoilHeat * recoilHeat;
+  const sprayUp = (1 - heatK * 0.55) * 1.0 + heatK * 0.5;   // start snappy, end climbs harder
+  player.recoilPitch += w.recoil * sprayUp;
+  // horizontal: pehle steady drift, heat ke saath random walk
+  const dir = recoilHeat < 0.35 ? 1 : (Math.random() < 0.5 ? -1 : 1);
+  player.recoilYaw += dir * w.recoil * (0.35 + heatK * 1.1);
+  weapons.vm.userData.kick = 1;
+  shake(w.slot === 2 ? 0.35 : 0.11);
+}
+
+// spread: movement + sustained fire bloom
+function currentSpread(w) {
+  const base = isMoving() ? (w.spreadMoving || w.spread) : w.spread;
+  if (!base) return 0;
+  return base * (1 + recoilHeat * 0.9) * (player.crouching ? 0.62 : 1) * (weapons.aiming && weapons.current === 'rifle' ? 0.5 : 1);
+}
+
 // ═══════════════ SHOOTING ═══════════════
 const raycaster = new THREE.Raycaster();
 const _dir = new THREE.Vector3();
@@ -222,6 +243,7 @@ function fireShot(nowS) {
     hud.crosshair.classList.add('melee');
     setTimeout(() => hud.crosshair.classList.remove('melee'), 150);
     fx.slash(weapons.gunTip, camera.quaternion);
+    shake(0.14);
     const fwd = camera.getWorldDirection(new THREE.Vector3());
     fwd.y = 0; fwd.normalize();
     const tip = player.pos.clone().addScaledVector(fwd, 1.6);
@@ -263,14 +285,13 @@ function fireShot(nowS) {
     : weapons.gunTip;
   camera.getWorldDirection(_dir);
   fx.muzzleFlash(tip, _dir.clone(), 0xffc66a, w.slot === 2 ? 1.6 : 1);
-  player.recoilPitch += w.recoil;
-  weapons.vm.userData.kick = 1;
+  applyRecoil(w);   // pattern-based recoil: up + yaw kick + shake
   if (w.slot === 2) player.vel.addScaledVector(_dir.clone().negate(), 2.5);
 
   let anyHit = false, headshot = false;
   for (let p = 0; p < w.pellets; p++) {
     camera.getWorldDirection(_dir);
-    const sp = (isMoving() ? w.spreadMoving : w.spread) || 0;
+    const sp = currentSpread(w);
     const dir = _dir.clone().add(new THREE.Vector3(
       (Math.random() - .5) * 2 * sp, (Math.random() - .5) * 2 * sp, (Math.random() - .5) * 2 * sp
     )).normalize();
@@ -556,6 +577,7 @@ function loop() {
   }
 
   if (state === 'playing') {
+    player.aimSlow = !player.thirdPerson && weapons.aiming && weapons.current !== 'katana';
     player.update(dt, world.colliders);
 
     // stance + footsteps + landing sounds
@@ -632,6 +654,7 @@ function loop() {
     hud.crosshair.classList.toggle('scoped', scoped);
     weapons.vm.visible = !player.thirdPerson && !scoped;   // scope/TPP me viewmodel chhupo
     animateViewmodel(weapons, player, dt, isMoving(), 0, nS);
+    if (scoped) { player.swayX = 0; player.swayY = 0; }    // scope me camera sway nahi — clean aim
     // shotgun shell insert sounds mid-reload
     if (weapons.reloading && weapons.current === 'shotgun') {
       const p = weapons.getReloadProgress(nS);
@@ -644,14 +667,25 @@ function loop() {
       : (weapons.aiming && weapons.current !== 'katana' ? 55
         : (player.dashTime > 0 ? 84 : (player.sprinting ? 83 : 75)));
     baseFov += (targetFov - baseFov) * Math.min(1, dt * 10);
+    // dash/sprint me halka fov pump (speed feel)
+    if (player.dashTime > 0) baseFov += Math.sin((1 - player.dashTime / 0.14) * Math.PI) * 3;
     camera.fov = baseFov;
     camera.updateProjectionMatrix();
+    // recoil heat thanda hona — fire na ho raha ho to
+    recoilHeat = Math.max(0, recoilHeat - dt * 1.1);
   }
 
   // shake
   if (shakeAmt > 0.001) {
-    camera.position.x += (Math.random() - .5) * shakeAmt * 0.35;
-    camera.position.y += (Math.random() - .5) * shakeAmt * 0.35;
+    // smooth rotational shake — positional sirf tab jab jhatka bada ho
+    shakePhase += dt * 46;
+    camera.rotation.z += Math.sin(shakePhase * 1.3) * shakeAmt * 0.018;
+    camera.rotation.x += Math.sin(shakePhase * 0.9 + 1.7) * shakeAmt * 0.011;
+    camera.rotation.y += Math.cos(shakePhase * 1.1 + 0.6) * shakeAmt * 0.011;
+    if (shakeAmt > 0.4) {
+      camera.position.x += (Math.random() - .5) * shakeAmt * 0.22;
+      camera.position.y += (Math.random() - .5) * shakeAmt * 0.22;
+    }
     shakeAmt *= Math.pow(0.0001, dt);
   }
 
